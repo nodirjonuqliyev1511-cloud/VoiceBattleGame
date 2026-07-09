@@ -70,24 +70,6 @@ const LOCAL_IP = getLocalIp();
 // покажет предупреждение, это нормально для локальной игры.
 // ==========================
 
-const pems = selfsigned.generate(
-    [{ name: "commonName", value: LOCAL_IP }],
-    {
-        days: 365,
-        keySize: 2048,
-        extensions: [
-            {
-                name: "subjectAltName",
-                altNames: [
-                    { type: 2, value: "localhost" },
-                    { type: 7, ip: "127.0.0.1" },
-                    { type: 7, ip: LOCAL_IP }
-                ]
-            }
-        ]
-    }
-);
-
 const server = http.createServer(app);
 
 const io = new Server(server);
