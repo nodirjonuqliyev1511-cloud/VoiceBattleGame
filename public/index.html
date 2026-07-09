@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Voice Battle</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/style.css">
+<style>
+  .screen { min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; gap: 22px; text-align:center; padding: 24px; }
+  .logo { font-size: 40px; }
+  .logo .hot { color: var(--hot-magenta); }
+  .logo .cyan { color: var(--electric-cyan); }
+  .choices { display:flex; gap: 16px; flex-wrap: wrap; justify-content:center; }
+</style>
+</head>
+<body>
+<div class="screen">
+  <div class="logo display"><span class="hot">VOICE</span> <span class="cyan">BATTLE</span></div>
+  <div style="color:var(--muted);">Гонка на крике: чем громче орёшь — тем быстрее едешь</div>
+  <div class="choices">
+    <a href="/host.html" style="text-decoration:none;"><button class="btn-primary">Я ВЕДУЩИЙ</button></a>
+    <a href="/join.html" style="text-decoration:none;"><button class="btn-secondary">Я УЧАСТНИК</button></a>
+  </div>
+</div>
+</body>
+</html>
