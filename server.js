@@ -1,7 +1,6 @@
 const express = require("express");
-const https = require("https");
+const http = require("http");
 const os = require("os");
-const selfsigned = require("selfsigned");
 const { Server } = require("socket.io");
 
 const app = express();
@@ -89,10 +88,7 @@ const pems = selfsigned.generate(
     }
 );
 
-const server = https.createServer(
-    { key: pems.private, cert: pems.cert },
-    app
-);
+const server = http.createServer(app);
 
 const io = new Server(server);
 
