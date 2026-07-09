@@ -6,7 +6,7 @@ const { Server } = require("socket.io");
 
 const app = express();
 
-const PORT = 3000;
+const PORT = process.env.PORT || 3000;
 
 const BATTLE_DURATION_MS = 30000; // сколько все орут одновременно (мс)
 const COUNTDOWN_SECONDS = 3;
@@ -497,11 +497,9 @@ io.on("connection", (socket) => {
 
 });
 
-server.listen(PORT, () => {
+server.listen(PORT, "0.0.0.0", () => {
 
-    console.log(`🚀 Сервер запущен: https://localhost:${PORT}`);
-    console.log(`🎤 Экран ведущего: https://localhost:${PORT}/host.html`);
-    console.log(`📱 Для игроков (в этом же Wi-Fi): https://${LOCAL_IP}:${PORT}/join.html`);
-    console.log(`⚠️  Браузер покажет предупреждение "соединение не защищено" — это нормально, нажмите "Дополнительно" → "Перейти на сайт".`);
+    console.log(`🚀 VoiceBattle Server started`);
+    console.log(`🌍 Listening on port ${PORT}`);
 
 });
