@@ -443,14 +443,17 @@ socket.on('roomCreated', ({ roomCode, maxPlayers, hostName }) => {
   showOnly(lobbyEl);
 
   const tunnelUrl = new URLSearchParams(location.search).get('tunnel');
-  if (tunnelUrl) {
+
+if (tunnelUrl) {
+
     renderQr(tunnelUrl);
     document.getElementById('warnHint').style.display = 'none';
-  } else {
-    fetch('/api/local-ip').then(r => r.json()).then(info => {
-      renderQr(`https://${info.ip}:${info.port}`);
-    });
-  }
+
+} else {
+
+    renderQr(window.location.origin);
+
+}
 });
 
 socket.on('playersUpdated', (players) => {
