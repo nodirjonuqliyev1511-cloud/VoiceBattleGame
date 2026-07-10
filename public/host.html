@@ -463,15 +463,17 @@ socket.on('roomCreated', ({ roomCode, maxPlayers, hostName }) => {
   document.getElementById('hostNameLabel').textContent = hostName;
   showOnly(lobbyEl);
 
-  const tunnelUrl = new URLSearchParams(location.search).get('tunnel');
-  if (tunnelUrl) {
+const tunnelUrl = new URLSearchParams(location.search).get('tunnel');
+
+if (tunnelUrl) {
+
     renderQr(tunnelUrl);
-  } else {
-    fetch('/api/local-ip').then(r => r.json()).then(info => {
-      const base = info.baseUrl ? info.baseUrl : `https://${info.ip}:${info.port}`;
-      renderQr(base);
-    });
-  }
+
+} else {
+
+    renderQr(window.location.origin);
+
+}
 });
 
 socket.on('playersUpdated', (players) => {
