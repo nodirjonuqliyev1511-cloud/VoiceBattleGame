@@ -104,6 +104,11 @@
   .race-city-banner::after {
     content:''; position:absolute; inset:0; background: linear-gradient(180deg, rgba(0,0,0,0) 40%, rgba(5,5,10,0.9) 100%);
   }
+  .city-video {
+    position:absolute; inset:0; width:100%; height:100%; object-fit: cover;
+    z-index: 1; display:none; background: #000;
+  }
+  .city-video.active { display:block; }
   .battle-inner { position:relative; z-index:1; flex:1; display:flex; flex-direction:column; gap:8px; padding: 10px 28px 0; }
   .particles { position:absolute; inset:0; z-index:1; pointer-events:none; overflow:hidden; }
   .particle {
@@ -210,13 +215,13 @@
 
   <!-- SETUP -->
   <div id="setup">
-    <div class="setup-label">Как объявить тебя участникам?</div>
-    <input type="text" id="hostNameInput" placeholder="Имя ведущего" maxlength="30">
+    <div class="eyebrow" id="welcomeLabel" style="margin-bottom:-4px;">Привет,&nbsp;ведущий</div>
     <div class="setup-label">Сколько игроков ожидается?</div>
     <input type="number" id="maxPlayersInput" value="8" min="1" max="30">
     <div class="setup-label" style="margin-top:6px;">Выбери город для трассы</div>
     <div class="city-grid" id="cityGrid"></div>
     <button class="btn-primary" id="createRoomBtn">СОЗДАТЬ КОМНАТУ</button>
+    <button class="btn-secondary" id="logoutBtn" style="margin-top:4px;">Выйти из аккаунта</button>
   </div>
 
   <!-- LOBBY -->
@@ -226,8 +231,7 @@
       <div class="qr-badge">SCAN ME</div>
       <div class="qr-inner"><div id="qrcode"></div></div>
       <div class="room-code" id="roomCodeText">------</div>
-      <div class="qr-hint">Скажи код или дай отсканировать QR (тот же Wi-Fi)</div>
-      <div class="qr-hint" style="color:var(--warn-yellow); margin-top:8px;" id="warnHint">При первом заходе телефон покажет предупреждение о безопасности — нажмите "Дополнительно" → "Перейти на сайт".</div>
+      <div class="qr-hint">Отсканируй QR</div>
     </div>
     <div class="lobby-players">
       <div class="eyebrow">Игроки (<span id="playerCount">0</span>/<span id="maxCount">0</span>)</div>
@@ -245,7 +249,10 @@
 
   <!-- BATTLE -->
   <div id="battle" class="idle">
-    <div class="race-city-banner"><div class="city-track-far" id="cityTrackFar"></div><div class="city-track" id="cityTrack"></div></div>
+    <div class="race-city-banner">
+      <div class="city-track-far" id="cityTrackFar"></div><div class="city-track" id="cityTrack"></div>
+      <video id="cityVideo" class="city-video" muted loop autoplay playsinline></video>
+    </div>
     <div class="battle-inner">
       <div class="particles" id="particles"></div>
       <div class="battle-header">
@@ -292,13 +299,13 @@ const nextUid = () => 'v' + (uidCounter++);
 
 const CITY_PRESETS = [
   { id: 'tokyo', name: 'Неоновый Токио', banner: 'linear-gradient(180deg, #2a0f3a 0%, #1c0a30 60%, #0a0414 100%)',
-    trackColors: ['#3a0f4a','#4a1560','#2a0f40','#1c0a30','#33115c'], landmark: 'tokyotower' },
+    trackColors: ['#3a0f4a','#4a1560','#2a0f40','#1c0a30','#33115c'], landmark: 'tokyotower', video: '/videos/tokyo.mp4' },
   { id: 'newyork', name: 'Ночной Нью-Йорк', banner: 'linear-gradient(180deg, #0f1c3a 0%, #14102a 60%, #070a14 100%)',
-    trackColors: ['#16264d','#2a1840','#1a3350','#0f1c3a','#241a4a'], landmark: 'twin' },
-  { id: 'shanghai', name: 'Футуристический Шанхай', banner: 'linear-gradient(180deg, #0a2a3a 0%, #1a1240 60%, #05080f 100%)',
-    trackColors: ['#0e3a4a','#241a50','#0a2a3a','#152a4a','#1e1550'], landmark: 'pearl' },
+    trackColors: ['#16264d','#2a1840','#1a3350','#0f1c3a','#241a4a'], landmark: 'twin', video: '/videos/newyork.mp4' },
+  { id: 'tashkent', name: 'Ночной Ташкент', banner: 'linear-gradient(180deg, #0a2a3a 0%, #1a1240 60%, #05080f 100%)',
+    trackColors: ['#0e3a4a','#241a50','#0a2a3a','#152a4a','#1e1550'], landmark: 'pearl', video: '/videos/tashkent.mp4' },
   { id: 'vegas', name: 'Лас-Вегас ночью', banner: 'linear-gradient(180deg, #3a1a0a 0%, #4a0e2a 60%, #140508 100%)',
-    trackColors: ['#5c2a0e','#5c0e33','#3a1a0a','#4a0e2a','#331507'], landmark: 'vegassign' }
+    trackColors: ['#5c2a0e','#5c0e33','#3a1a0a','#4a0e2a','#331507'], landmark: 'vegassign', video: '/videos/vegas.mp4' }
 ];
 let selectedCity = CITY_PRESETS[0];
 
@@ -420,9 +427,23 @@ function progressToPercent(progressPct) {
 }
 
 document.getElementById('createRoomBtn').addEventListener('click', () => {
-  const hostName = document.getElementById('hostNameInput').value.trim() || 'Ведущий';
   const maxPlayers = parseInt(document.getElementById('maxPlayersInput').value, 10) || 8;
-  socket.emit('createRoom', { maxPlayers, hostName });
+  socket.emit('createRoom', { maxPlayers });
+});
+
+document.getElementById('logoutBtn').addEventListener('click', async () => {
+  await fetch('/api/host/logout', { method: 'POST' });
+  location.href = '/host-login.html';
+});
+
+// подтягиваем имя вошедшего ведущего для приветствия (сервер всё равно
+// сам подставит его в комнату — это только для UI)
+fetch('/api/session').then(r => r.json()).then(sess => {
+  if (!sess.role) {
+    location.href = '/host-login.html';
+    return;
+  }
+  document.getElementById('welcomeLabel').textContent = `Привет, ${sess.displayName || sess.username}`;
 });
 
 function renderQr(baseUrl) {
@@ -443,17 +464,14 @@ socket.on('roomCreated', ({ roomCode, maxPlayers, hostName }) => {
   showOnly(lobbyEl);
 
   const tunnelUrl = new URLSearchParams(location.search).get('tunnel');
-
-if (tunnelUrl) {
-
+  if (tunnelUrl) {
     renderQr(tunnelUrl);
-    document.getElementById('warnHint').style.display = 'none';
-
-} else {
-
-    renderQr(window.location.origin);
-
-}
+  } else {
+    fetch('/api/local-ip').then(r => r.json()).then(info => {
+      const base = info.baseUrl ? info.baseUrl : `https://${info.ip}:${info.port}`;
+      renderQr(base);
+    });
+  }
 });
 
 socket.on('playersUpdated', (players) => {
@@ -481,19 +499,51 @@ socket.on('countdown', (seconds) => {
   }, 1000);
 });
 
-socket.on('battleStarted', ({ durationMs }) => {
+let raceStopwatch = null;
+
+// пробуем включить видео-фон города; если файла нет/не грузится — остаётся анимация из блоков
+function setupCityVideo(city) {
+  const videoEl = document.getElementById('cityVideo');
+  if (!city.video) {
+    videoEl.classList.remove('active');
+    return;
+  }
+  videoEl.muted = true;
+  videoEl.playsInline = true;
+  if (videoEl.dataset.src !== city.video) {
+    videoEl.dataset.src = city.video;
+    videoEl.src = city.video;
+    videoEl.load();
+  }
+  videoEl.oncanplay = () => { videoEl.classList.add('active'); };
+  videoEl.onerror = () => {
+    videoEl.classList.remove('active');
+    console.warn('Не удалось загрузить видео города:', city.video, videoEl.error);
+  };
+  videoEl.play()
+    .then(() => videoEl.classList.add('active'))
+    .catch((err) => {
+      videoEl.classList.remove('active');
+      console.warn('Видео заблокировано браузером:', city.video, err);
+    });
+}
+
+socket.on('battleStarted', () => {
   showOnly(battleEl);
   buildCityTrack(selectedCity);
   buildParticles(selectedCity);
+  setupCityVideo(selectedCity);
   battleEl.classList.remove('idle');
   renderLanes(currentPlayers);
 
-  let secondsLeft = Math.round(durationMs / 1000);
-  document.getElementById('battleTimer').textContent = secondsLeft;
-  const iv = setInterval(() => {
-    secondsLeft -= 1;
-    document.getElementById('battleTimer').textContent = Math.max(0, secondsLeft);
-    if (secondsLeft <= 0) clearInterval(iv);
+  let elapsed = 0;
+  document.getElementById('battleTimer').textContent = '0:00';
+  if (raceStopwatch) clearInterval(raceStopwatch);
+  raceStopwatch = setInterval(() => {
+    elapsed += 1;
+    const m = Math.floor(elapsed / 60);
+    const s = elapsed % 60;
+    document.getElementById('battleTimer').textContent = m + ':' + String(s).padStart(2, '0');
   }, 1000);
 });
 
@@ -606,6 +656,9 @@ function launchFireworks() {
 }
 
 socket.on('battleOver', (results) => {
+  if (raceStopwatch) { clearInterval(raceStopwatch); raceStopwatch = null; }
+  const videoEl = document.getElementById('cityVideo');
+  if (videoEl) videoEl.pause();
   showOnly(resultsEl);
   const winner = results[0];
   if (winner) {

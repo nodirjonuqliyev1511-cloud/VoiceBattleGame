@@ -92,7 +92,7 @@
   </div>
 
   <div id="battleScreen">
-    <div class="timer-pill" id="timerPill">30 сек</div>
+    <div class="timer-pill" id="timerPill">0:00</div>
     <div class="eyebrow" style="margin-bottom:10px;">ОРИ КАК МОЖНО ГРОМЧЕ!</div>
     <div class="speedo">
       <div class="speedo-glow" id="speedoGlow"></div>
@@ -182,7 +182,7 @@ function getRms() {
 }
 
 const SCORE_MIN = 0, SCORE_MAX = 100;
-const RMS_DB_FLOOR = -55, RMS_DB_CEIL = -8;
+const RMS_DB_FLOOR = -50, RMS_DB_CEIL = -5;
 function rmsToScore(rms) {
   const safeRms = Math.max(rms, 0.000001);
   const db = 20 * Math.log10(safeRms);
@@ -236,15 +236,19 @@ socket.on('countdown', (seconds) => {
   }, 1000);
 });
 
-socket.on('battleStarted', ({ durationMs }) => {
+let myStopwatch = null;
+
+socket.on('battleStarted', () => {
   show('battleScreen');
 
-  let secondsLeft = Math.round(durationMs / 1000);
-  document.getElementById('timerPill').textContent = secondsLeft + ' сек';
-  const timerIv = setInterval(() => {
-    secondsLeft -= 1;
-    document.getElementById('timerPill').textContent = Math.max(0, secondsLeft) + ' сек';
-    if (secondsLeft <= 0) clearInterval(timerIv);
+  let elapsed = 0;
+  document.getElementById('timerPill').textContent = '0:00';
+  if (myStopwatch) clearInterval(myStopwatch);
+  myStopwatch = setInterval(() => {
+    elapsed += 1;
+    const m = Math.floor(elapsed / 60);
+    const s = elapsed % 60;
+    document.getElementById('timerPill').textContent = m + ':' + String(s).padStart(2, '0');
   }, 1000);
 
   function tick() {
@@ -266,6 +270,7 @@ socket.on('battleStarted', ({ durationMs }) => {
 
 socket.on('battleOver', (results) => {
   cancelAnimationFrame(rafId);
+  if (myStopwatch) { clearInterval(myStopwatch); myStopwatch = null; }
   show('resultsScreen');
   const mine = results.find(r => r.id === socket.id);
   document.getElementById('placeBig').textContent = mine ? mine.place : '-';

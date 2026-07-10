@@ -14,7 +14,9 @@
   "dependencies": {
     "express": "^5.2.1",
     "socket.io": "^4.8.3",
-    "selfsigned": "^2.4.1"
+    "selfsigned": "^2.4.1",
+    "bcryptjs": "^2.4.3",
+    "express-session": "^1.18.1"
   },
   "devDependencies": {
     "nodemon": "^3.1.14"
