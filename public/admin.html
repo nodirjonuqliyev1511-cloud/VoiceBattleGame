@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Voice Battle — админка</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/style.css">
+<style>
+  .wrap { max-width: 720px; margin: 0 auto; padding: 32px 20px 60px; }
+  .top { display:flex; justify-content:space-between; align-items:center; margin-bottom: 28px; }
+  .logo { font-size: 26px; }
+  .logo .hot { color: var(--hot-magenta); } .logo .cyan { color: var(--electric-cyan); }
+  .btn-secondary {
+    background: var(--stage-black-2); color: var(--paper); border:1px solid var(--line);
+    font-weight:800; border-radius:12px; padding:10px 18px; font-size:14px;
+  }
+  .card { background: var(--stage-black-2); border:1px solid var(--line); border-radius: 18px; padding: 22px; margin-bottom: 22px; }
+  .card h2 { font-size: 15px; margin: 0 0 16px; text-transform:uppercase; letter-spacing:0.08em; color: var(--muted); }
+  .row { display:flex; gap: 10px; flex-wrap: wrap; }
+  input[type=text], input[type=password] {
+    font-family:'Inter',sans-serif; font-size:15px; font-weight:600;
+    background: var(--stage-black); border:1px solid var(--line); color: var(--paper);
+    border-radius:10px; padding:12px 14px; flex:1; min-width: 140px;
+  }
+  input:focus { outline: 2px solid var(--electric-cyan); }
+  .err { color: var(--hot-magenta); font-size: 13px; margin-top: 10px; }
+  .ok { color: #4fd675; font-size: 13px; margin-top: 10px; }
+
+  table { width:100%; border-collapse: collapse; margin-top: 4px; }
+  th { text-align:left; font-size:11px; text-transform:uppercase; letter-spacing:0.06em; color: var(--muted); padding: 6px 8px; border-bottom: 1px solid var(--line); }
+  td { padding: 12px 8px; border-bottom: 1px solid var(--line); font-size: 14px; }
+  .del-btn {
+    background: transparent; border: 1px solid var(--hot-magenta); color: var(--hot-magenta);
+    border-radius: 8px; padding: 6px 12px; font-size: 12px; font-weight: 800;
+  }
+  .del-btn:hover { background: var(--hot-magenta); color: #fff; }
+  .empty-hint { color: var(--muted); font-size: 14px; padding: 16px 0; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top">
+    <div class="logo display"><span class="hot">VOICE</span> <span class="cyan">BATTLE</span> <span style="color:var(--muted); font-size:16px;">/ admin</span></div>
+    <button class="btn-secondary" id="logoutBtn">Выйти</button>
+  </div>
+
+  <div class="card">
+    <h2>Новый ведущий</h2>
+    <div class="row">
+      <input type="text" id="newUsername" placeholder="Логин (латиница)">
+      <input type="text" id="newDisplayName" placeholder="Имя для афиши">
+      <input type="password" id="newPassword" placeholder="Пароль">
+    </div>
+    <button class="btn-primary" id="createBtn" style="margin-top:14px;">СОЗДАТЬ ВЕДУЩЕГО</button>
+    <div class="err" id="createErr"></div>
+    <div class="ok" id="createOk"></div>
+  </div>
+
+  <div class="card">
+    <h2>Ведущие (<span id="hostCount">0</span>)</h2>
+    <table id="hostsTable" style="display:none;">
+      <thead><tr><th>Логин</th><th>Имя на афише</th><th>Создан</th><th></th></tr></thead>
+      <tbody id="hostsBody"></tbody>
+    </table>
+    <div class="empty-hint" id="emptyHint">Пока нет ни одного ведущего</div>
+  </div>
+</div>
+
+<script>
+async function loadHosts() {
+  const res = await fetch('/api/admin/hosts');
+  if (res.status === 401) { location.href = '/admin-login.html'; return; }
+  const data = await res.json();
+  const hosts = data.hosts || [];
+
+  document.getElementById('hostCount').textContent = hosts.length;
+  document.getElementById('hostsTable').style.display = hosts.length ? 'table' : 'none';
+  document.getElementById('emptyHint').style.display = hosts.length ? 'none' : 'block';
+
+  document.getElementById('hostsBody').innerHTML = hosts.map(h => `
+    <tr>
+      <td>${escapeHtml(h.username)}</td>
+      <td>${escapeHtml(h.displayName)}</td>
+      <td style="color:var(--muted); font-size:12px;">${new Date(h.createdAt).toLocaleDateString('ru-RU')}</td>
+      <td><button class="del-btn" data-username="${escapeHtml(h.username)}">Удалить</button></td>
+    </tr>
+  `).join('');
+
+  document.querySelectorAll('.del-btn').forEach(btn => {
+    btn.addEventListener('click', async () => {
+      if (!confirm(`Удалить ведущего "${btn.dataset.username}"?`)) return;
+      await fetch('/api/admin/hosts/' + encodeURIComponent(btn.dataset.username), { method: 'DELETE' });
+      loadHosts();
+    });
+  });
+}
+
+document.getElementById('createBtn').addEventListener('click', async () => {
+  const username = document.getElementById('newUsername').value.trim();
+  const displayName = document.getElementById('newDisplayName').value.trim();
+  const password = document.getElementById('newPassword').value;
+  const errEl = document.getElementById('createErr');
+  const okEl = document.getElementById('createOk');
+  errEl.textContent = ''; okEl.textContent = '';
+
+  const res = await fetch('/api/admin/hosts', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, displayName, password })
+  });
+  const data = await res.json();
+
+  if (!res.ok) {
+    errEl.textContent = data.error || 'Не удалось создать';
+    return;
+  }
+
+  okEl.textContent = `Готово! Логин "${data.username}" создан.`;
+  document.getElementById('newUsername').value = '';
+  document.getElementById('newDisplayName').value = '';
+  document.getElementById('newPassword').value = '';
+  loadHosts();
+});
+
+document.getElementById('logoutBtn').addEventListener('click', async () => {
+  await fetch('/api/admin/logout', { method: 'POST' });
+  location.href = '/admin-login.html';
+});
+
+function escapeHtml(s) {
+  return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+loadHosts();
+</script>
+</body>
+</html>

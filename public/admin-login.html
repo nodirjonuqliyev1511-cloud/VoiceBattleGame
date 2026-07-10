@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<title>Voice Battle — вход администратора</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="stylesheet" href="/style.css">
+<style>
+  .screen { min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; gap: 18px; padding: 24px; text-align:center; }
+  .logo { font-size: 36px; }
+  .logo .hot { color: var(--hot-magenta); } .logo .cyan { color: var(--electric-cyan); }
+  .card { background: var(--stage-black-2); border:1px solid var(--line); border-radius: 20px; padding: 30px; width: 100%; max-width: 340px; }
+  input[type=text], input[type=password] {
+    font-family:'Inter',sans-serif; font-size:16px; font-weight:600;
+    background: var(--stage-black); border:1px solid var(--line); color: var(--paper);
+    border-radius:12px; padding:14px 16px; width:100%; margin-bottom:12px; text-align:center;
+  }
+  input:focus { outline: 2px solid var(--electric-cyan); }
+  .err { color: var(--hot-magenta); font-size: 13px; min-height: 18px; margin-top: 4px; }
+</style>
+</head>
+<body>
+<div class="screen">
+  <div class="logo display"><span class="hot">VOICE</span> <span class="cyan">BATTLE</span></div>
+  <div class="eyebrow">Вход администратора</div>
+  <div class="card">
+    <input type="text" id="username" placeholder="Логин" autocomplete="username">
+    <input type="password" id="password" placeholder="Пароль" autocomplete="current-password">
+    <button class="btn-primary" id="loginBtn" style="width:100%;">ВОЙТИ</button>
+    <div class="err" id="err"></div>
+  </div>
+</div>
+
+<script>
+async function doLogin() {
+  const username = document.getElementById('username').value.trim();
+  const password = document.getElementById('password').value;
+  const errEl = document.getElementById('err');
+  errEl.textContent = '';
+
+  if (!username || !password) {
+    errEl.textContent = 'Заполни логин и пароль';
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/admin/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+    const data = await res.json();
+    if (!res.ok) {
+      errEl.textContent = data.error || 'Не удалось войти';
+      return;
+    }
+    location.href = '/admin.html';
+  } catch (e) {
+    errEl.textContent = 'Ошибка сети, попробуй ещё раз';
+  }
+}
+
+document.getElementById('loginBtn').addEventListener('click', doLogin);
+document.getElementById('password').addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') doLogin();
+});
+</script>
+</body>
+</html>
