@@ -3,15 +3,5 @@
     "passwordHash": "$2a$10$Wq3jTWPojzWQ/VEBBDc3y.pb8jLKZD08s5gr2f/1P6pFt2cIf0buC",
     "displayName": "Adam_Showman",
     "createdAt": "2026-07-10T22:16:02.664Z"
-  },
-  "elnar": {
-    "passwordHash": "$2a$10$VKIYQkYfSZdK/g0aLhw2fu73ViCjEQh0rSFEWXSeFuELGqHBaMwU.",
-    "displayName": "Elnar_Elmirov",
-    "createdAt": "2026-07-10T22:16:24.353Z"
-  },
-  "salavat": {
-    "passwordHash": "$2a$10$iQPRcIwkoVL1OHLO40.WfuRRJxhm7yinmSJM645WafFAeaIXabcIu",
-    "displayName": "Salavat_Davledyarov",
-    "createdAt": "2026-07-11T09:17:22.994Z"
   }
 }

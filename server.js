@@ -273,7 +273,12 @@ if (IS_CLOUD) {
 
 }
 
-const io = new Server(server);
+const io = new Server(server, {
+    // раунд больше не ограничен по времени, поэтому запись голоса может
+    // вырасти заметно больше 1 МБ по умолчанию — поднимаем лимит, чтобы
+    // такие сообщения не отбрасывались молча
+    maxHttpBufferSize: 25 * 1024 * 1024
+});
 
 // расшариваем express-сессию с socket.io (Socket.IO 4.6+),
 // чтобы в обработчиках сокетов знать, кто подключился — гость, ведущий или админ
@@ -284,6 +289,31 @@ app.get("/api/local-ip", (req, res) => {
         return res.json({ baseUrl: PUBLIC_BASE_URL });
     }
     res.json({ ip: LOCAL_IP, port: PORT });
+});
+
+// Запись голоса участника — только в памяти, отдаётся только тому ведущему,
+// который создал именно эту комнату (или админу). Не сохраняется на диск.
+app.get("/api/recording/:roomCode/:playerId", (req, res) => {
+
+    const sess = req.session;
+    if (!sess || (sess.role !== "host" && sess.role !== "admin")) {
+        return res.status(401).end();
+    }
+
+    const room = rooms[req.params.roomCode];
+    if (!room) return res.status(404).end();
+
+    if (sess.role !== "admin" && sess.username !== room.hostUsername) {
+        return res.status(403).end();
+    }
+
+    const rec = room.recordings[req.params.playerId];
+    if (!rec) return res.status(404).end();
+
+    res.set("Content-Type", rec.mimeType || "audio/webm");
+    res.set("Cache-Control", "no-store");
+    res.send(rec.buffer);
+
 });
 
 // ==========================================================
@@ -307,8 +337,8 @@ const RMS_DB_CEIL = -5;
 function volumeToScore(rms) {
     const safeRms = Math.max(rms, 0.000001);
     const db = 20 * Math.log10(safeRms);
-    let pct = ((db - RMS_DB_FLOOR) / (RMS_DB_CEIL - RMS_DB_FLOOR)) * 100;
-    pct = Math.max(0, Math.min(100, pct));
+    let pct = ((db - RMS_DB_FLOOR) / (RMS_DB_CEIL - RMS_DB_FLOOR)) * 200;
+    pct = Math.max(0, Math.min(200, pct));
     return Math.round(pct * 10) / 10;
 }
 
@@ -367,11 +397,13 @@ io.on("connection", (socket) => {
         rooms[roomCode] = {
 
             hostId: socket.id,
+            hostUsername: sess.username,
             hostName,
             maxPlayers: maxPlayers,
             players: [],
             status: "lobby", // lobby | battling | finished
-            battleTimer: null
+            battleTimer: null,
+            recordings: {} // playerId -> { buffer: Buffer, mimeType: string } — только в памяти, не на диске
 
         };
 
@@ -444,6 +476,8 @@ io.on("connection", (socket) => {
 
         if (room.players.length === 0) return;
         if (room.status === "battling") return;
+
+        room.recordings = {};
 
         room.players.forEach(player => {
             player.currentScore = 0;
@@ -531,7 +565,7 @@ io.on("connection", (socket) => {
         const dtSeconds = player.lastTickAt ? Math.min(0.5, (now - player.lastTickAt) / 1000) : 0;
         player.lastTickAt = now;
 
-        const speedFraction = Math.max(0, Math.min(1, score / 100));
+        const speedFraction = Math.max(0, Math.min(1, score / 200));
         player.totalDistanceKm += speedFraction * DISTANCE_KM_PER_SECOND_AT_MAX * dtSeconds;
 
         if (!player.finished && player.totalDistanceKm >= FINISH_DISTANCE_KM) {
@@ -556,6 +590,53 @@ io.on("connection", (socket) => {
     });
 
     // ==========================
+    // ПРИЁМ ЗАПИСИ ГОЛОСА (только в оперативной памяти, без диска/БД)
+    // ==========================
+
+    const MAX_RECORDING_BYTES = 15 * 1024 * 1024; // запас с большим отрывом от реальных ~30-сек записей
+
+    socket.on("submitRecording", ({ mimeType, buffer } = {}) => {
+
+        const roomCode = socket.data.roomCode;
+        const room = rooms[roomCode];
+        if (!room) return;
+
+        const player = room.players.find(p => p.id === socket.id);
+        if (!player) return;
+
+        // socket.io на стороне Node может отдать бинарные данные и как Buffer,
+        // и как ArrayBuffer (а иногда как обычный TypedArray) — приводим
+        // к единому Buffer независимо от того, что именно пришло
+        let buf;
+        if (Buffer.isBuffer(buffer)) {
+            buf = buffer;
+        } else if (buffer instanceof ArrayBuffer) {
+            buf = Buffer.from(buffer);
+        } else if (ArrayBuffer.isView(buffer)) {
+            buf = Buffer.from(buffer.buffer, buffer.byteOffset, buffer.byteLength);
+        } else {
+            console.warn(`⚠️ Запись от ${player.name} пришла в неожиданном формате, отброшена`);
+            return;
+        }
+
+        if (buf.length === 0) return;
+        if (buf.length > MAX_RECORDING_BYTES) {
+            console.warn(`⚠️ Запись от ${player.name} превышает лимит размера, отброшена`);
+            return;
+        }
+
+        room.recordings[socket.id] = {
+            buffer: buf,
+            mimeType: (mimeType || "audio/webm").toString().slice(0, 60)
+        };
+
+        console.log(`🎙 Получена запись от ${player.name} (${Math.round(buf.length / 1024)} КБ)`);
+
+        io.to(room.hostId).emit("recordingReady", { playerId: socket.id });
+
+    });
+
+    // ==========================
     // НОВЫЙ РАУНД (та же комната, те же игроки)
     // ==========================
 
@@ -568,6 +649,7 @@ io.on("connection", (socket) => {
         if (room.battleTimer) clearTimeout(room.battleTimer);
 
         room.status = "lobby";
+        room.recordings = {};
         room.players.forEach(p => {
             p.currentScore = 0;
             p.peakScore = -999;

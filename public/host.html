@@ -8,48 +8,118 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="/socket.io/socket.io.js"></script>
 <style>
-  body { background: radial-gradient(ellipse at top, #12121c 0%, #05050a 70%); }
+  body {
+    background-color: #0a0a10;
+    background-image:
+      linear-gradient(180deg, rgba(5,5,10,0.75) 0%, rgba(5,5,10,0.9) 55%, rgba(5,5,10,0.97) 100%),
+      url('/img/backgrounds/setup-bg.png');
+    background-size: cover;
+    background-position: center;
+    background-attachment: fixed;
+    background-repeat: no-repeat;
+  }
+  :root { --violet: #7c5cff; --nav-height: 72px; --video-banner-height: 300px; }
   .wrap { min-height: 100vh; display:flex; flex-direction:column; padding: 0 0 40px; }
 
-  /* ---- НЕОНОВЫЕ ОГНИ ---- */
-  .light-rig { display:flex; justify-content:center; gap: 34px; padding: 22px 0 10px; }
-  .light { width: 26px; height: 26px; border-radius: 50%; animation: flicker 2.4s ease-in-out infinite; }
-  .light:nth-child(1) { background: var(--warn-yellow); box-shadow: 0 0 24px 6px var(--warn-yellow); animation-delay: 0s; }
-  .light:nth-child(2) { background: var(--electric-cyan); box-shadow: 0 0 24px 6px var(--electric-cyan); animation-delay: .3s; }
-  .light:nth-child(3) { background: #4fd675; box-shadow: 0 0 24px 6px #4fd675; animation-delay: .6s; }
-  .light:nth-child(4) { background: var(--hot-magenta); box-shadow: 0 0 24px 6px var(--hot-magenta); animation-delay: .9s; }
-  .light:nth-child(5) { background: #ff5c5c; box-shadow: 0 0 24px 6px #ff5c5c; animation-delay: 1.2s; }
-  .light:nth-child(6) { background: #7b8cff; box-shadow: 0 0 24px 6px #7b8cff; animation-delay: 1.5s; }
-  @keyframes flicker { 0%,100% { opacity: 1; transform: scale(1); } 50% { opacity: .55; transform: scale(0.88); } }
-
-  /* ---- БАННЕР ---- */
-  .banner {
-    margin: 6px 32px 22px; border-radius: 20px; overflow: hidden; position: relative;
-    background: linear-gradient(180deg, #1c2a4a 0%, #0f1830 60%, #070a14 100%);
-    border: 1px solid var(--line);
+  /* ---- ШАПКА (прозрачная — поверх видео/фона, а не отдельной чёрной полосой) ---- */
+  .top-nav {
+    position: relative; z-index: 5; height: var(--nav-height); box-sizing: border-box;
+    display:flex; align-items:center; justify-content:space-between;
+    padding: 0 32px; border-bottom: 1px solid rgba(255,255,255,0.08);
+    background: linear-gradient(180deg, rgba(5,5,10,0.35), rgba(5,5,10,0.15));
+    backdrop-filter: blur(3px);
   }
-  .skyline { display:flex; align-items:flex-end; gap: 3px; height: 60px; padding: 0 16px; opacity: 0.55; }
-  .skyline div { background: #06070d; border-radius: 2px 2px 0 0; }
-  .banner-row { display:flex; align-items:center; justify-content:space-between; padding: 12px 24px 16px; }
-  .brand { font-family:'Anton', sans-serif; font-size: 22px; letter-spacing: 0.06em; }
-  .brand .hot { color: var(--hot-magenta); } .brand .cyan { color: var(--electric-cyan); }
-  .host-pill { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.18); border-radius: 999px; padding: 8px 18px; font-size: 13px; font-weight: 700; }
-  .host-pill b { color: var(--warn-yellow); }
+  .top-nav-logo { display:flex; align-items:center; gap: 12px; }
+  .top-nav-logo-badge {
+    width: 44px; height: 44px; border-radius: 14px; display:flex; align-items:center; justify-content:center;
+    background: linear-gradient(135deg, var(--hot-magenta), var(--violet)); font-size: 20px;
+    box-shadow: 0 6px 18px rgba(124,92,255,0.4);
+  }
+  .top-nav-brand { font-family:'Anton', sans-serif; line-height:1; font-size: 19px; letter-spacing:0.03em; }
+  .top-nav-brand .hot { color: var(--hot-magenta); display:block; }
+  .top-nav-profile { display:flex; align-items:center; gap: 12px; cursor:pointer; position:relative; }
+  .top-nav-profile-text { text-align:right; }
+  .top-nav-profile-label { font-size: 10px; color: var(--muted); letter-spacing:0.1em; font-weight:800; }
+  .top-nav-profile-name { font-size: 14px; font-weight:800; }
+  .top-nav-avatar {
+    width: 38px; height: 38px; border-radius: 50%; display:flex; align-items:center; justify-content:center;
+    background: linear-gradient(135deg, var(--electric-cyan), var(--violet)); font-size: 16px;
+  }
+  .top-nav-chevron { color: var(--muted); font-size: 11px; }
+  .top-nav-menu {
+    display:none; position:absolute; top: 52px; right:0; background: var(--stage-black-2);
+    border:1px solid var(--line); border-radius: 12px; padding: 6px; min-width: 170px;
+    box-shadow: 0 12px 30px rgba(0,0,0,0.5); z-index: 20;
+  }
+  .top-nav-menu.open { display:block; }
+  .top-nav-menu button {
+    width:100%; text-align:left; background:none; border:none; color: var(--paper);
+    padding: 10px 12px; border-radius: 8px; font-size: 13px; font-weight:700;
+  }
+  .top-nav-menu button:hover { background: var(--stage-black); }
 
   /* ---- SETUP ---- */
-  #setup { flex:1; display:flex; flex-direction:column; align-items:center; justify-content:center; gap: 16px; padding: 20px; }
-  #setup input { max-width: 260px; }
-  .setup-label { color: var(--muted); font-size: 13px; }
-  .city-grid { display:flex; flex-wrap:wrap; justify-content:center; gap: 10px; max-width: 520px; }
-  .city-card {
-    width: 110px; padding: 10px 8px 12px; border-radius: 14px; cursor:pointer;
-    background: var(--stage-black-2); border: 2px solid var(--line); text-align:center;
-    transition: border-color 0.15s, transform 0.1s;
+  #setup {
+    flex:1; display:flex; flex-direction:column; align-items:center; gap: 22px; padding: 40px 20px 30px;
+    position: relative;
   }
-  .city-card:hover { transform: translateY(-2px); }
-  .city-card.selected { border-color: var(--warn-yellow); box-shadow: 0 0 0 3px rgba(255,210,63,0.25); }
-  .city-card .swatch { height: 44px; border-radius: 8px; margin-bottom: 8px; }
-  .city-card .cname { font-size: 12px; font-weight: 800; }
+  .setup-hero { text-align:center; max-width: 700px; }
+  .setup-hero-line { display:flex; align-items:center; justify-content:center; gap: 16px; margin-bottom: 6px; }
+  .setup-hero-flag { font-size: 20px; opacity: 0.85; }
+  .setup-hero-dash { width: 70px; height: 2px; background: linear-gradient(90deg, transparent, var(--hot-magenta)); }
+  .setup-hero-dash.right { background: linear-gradient(90deg, var(--electric-cyan), transparent); }
+  .setup-title { font-family:'Anton',sans-serif; font-size: 42px; font-style:italic; letter-spacing:0.02em; }
+  .setup-subtitle { color: var(--muted); font-size: 14px; margin-top: 6px; }
+
+  .setup-card {
+    width: 100%; max-width: 760px; background: rgba(15,15,22,0.85); backdrop-filter: blur(4px);
+    border: 1px solid var(--line); border-radius: 20px; padding: 22px 26px;
+  }
+  .setup-card-title {
+    display:flex; align-items:center; gap: 10px; font-weight: 800; font-size: 13px;
+    text-transform:uppercase; letter-spacing:0.08em; color: var(--paper); margin-bottom: 14px;
+  }
+  .setup-card-hint { color: var(--muted); font-size: 12px; text-align:center; margin-top: 12px; }
+
+  .player-count-row { display:flex; flex-wrap:wrap; gap: 10px; justify-content:center; }
+  .player-count-btn {
+    width: 56px; height: 48px; border-radius: 12px; background: var(--stage-black-2);
+    border: 1px solid var(--line); color: var(--paper); font-family:'Anton',sans-serif; font-size: 18px;
+  }
+  .player-count-btn.selected {
+    background: linear-gradient(135deg, var(--hot-magenta), var(--violet)); border-color: transparent;
+    box-shadow: 0 6px 18px rgba(124,92,255,0.45);
+  }
+
+  .city-grid { display:grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+  .city-card {
+    position: relative; aspect-ratio: 3 / 4; border-radius: 16px; cursor:pointer; overflow:hidden;
+    border: 2px solid var(--line); transition: transform 0.12s, border-color 0.15s;
+    background-color: #14141c;
+    background-image: linear-gradient(180deg, rgba(0,0,0,0.05) 40%, rgba(0,0,0,0.85) 100%), var(--city-photo);
+    background-size: cover; background-position: center;
+  }
+  .city-card:hover { transform: translateY(-3px); }
+  .city-card.selected {
+    border-color: var(--violet); box-shadow: 0 0 0 3px rgba(124,92,255,0.35), 0 10px 26px rgba(124,92,255,0.35);
+  }
+  .city-card-label {
+    position:absolute; left:10px; right:10px; bottom:10px; font-family:'Anton',sans-serif;
+    font-size: 14px; line-height:1.15; text-shadow: 0 2px 6px rgba(0,0,0,0.8);
+  }
+  .city-card-check {
+    display:none; position:absolute; top:8px; right:8px; width: 24px; height:24px; border-radius:50%;
+    background: var(--violet); color:#fff; font-size: 13px; align-items:center; justify-content:center;
+  }
+  .city-card.selected .city-card-check { display:flex; }
+
+  .setup-footer { display:flex; align-items:center; gap: 14px; justify-content:center; flex-wrap:wrap; width:100%; max-width:760px; }
+  .setup-footer .btn-secondary { min-width: 64px; height: 56px; }
+  .setup-footer .btn-primary {
+    flex:1; min-width: 260px; padding: 14px 26px; text-align:center;
+    background: linear-gradient(90deg, var(--hot-magenta), var(--violet));
+  }
+  .setup-footer .btn-primary .sub { display:block; font-size: 11px; font-weight: 500; opacity:0.85; margin-top:2px; }
 
   /* ---- LOBBY: всё по центру ---- */
   #lobby { display:none; flex: 1; flex-direction: column; align-items:center; justify-content:center; gap: 26px; padding: 20px; text-align:center; }
@@ -98,8 +168,8 @@
   /* ---- BATTLE: настоящая гоночная трасса ---- */
   #battle { display:none; flex:1; flex-direction:column; gap: 8px; position: relative; overflow:hidden; }
   .race-city-banner {
-    position: relative; width: 100%; height: 190px; overflow:hidden; flex-shrink:0;
-    box-shadow: inset 0 -30px 40px -20px rgba(0,0,0,0.7);
+    position: fixed; top:0; left:0; right:0; height: var(--video-banner-height); overflow:hidden;
+    z-index: 0; box-shadow: inset 0 -30px 40px -20px rgba(0,0,0,0.7);
   }
   .race-city-banner::after {
     content:''; position:absolute; inset:0; background: linear-gradient(180deg, rgba(0,0,0,0) 40%, rgba(5,5,10,0.9) 100%);
@@ -109,7 +179,10 @@
     z-index: 1; display:none; background: #000;
   }
   .city-video.active { display:block; }
-  .battle-inner { position:relative; z-index:1; flex:1; display:flex; flex-direction:column; gap:8px; padding: 10px 28px 0; }
+  .battle-inner {
+    position:relative; z-index:1; flex:1; display:flex; flex-direction:column; gap:8px;
+    padding: calc(var(--video-banner-height) - var(--nav-height) + 10px) 28px 0;
+  }
   .particles { position:absolute; inset:0; z-index:1; pointer-events:none; overflow:hidden; }
   .particle {
     position:absolute; bottom:-10px; border-radius:50%;
@@ -125,20 +198,44 @@
   .city-track-far { display:flex; align-items:flex-end; position:absolute; bottom:0; left:0; height: 70%; animation: citymove 26s linear infinite; opacity: 0.55; }
   .city-track > div, .city-track-far > div { margin-right: 8px; border-radius: 5px 5px 0 0; flex-shrink:0; }
   @keyframes citymove { from { transform: translateX(0); } to { transform: translateX(-50%); } }
-  .battle-header { position:relative; z-index:1; display:flex; justify-content:space-between; align-items:center; padding: 0 6px 10px; }
-  .battle-timer { font-family:'Anton',sans-serif; font-size: 50px; color: var(--warn-yellow); }
+  .battle-header {
+    position:absolute; left:0; right:0; top: 96px; z-index: 3;
+    display:flex; justify-content:center; padding: 0 6px;
+  }
+  .timer-frame {
+    position:relative; padding: 3px; clip-path: polygon(9% 0,91% 0,100% 50%,91% 100%,9% 100%,0% 50%);
+    background: linear-gradient(90deg, var(--hot-magenta), var(--violet));
+    box-shadow: 0 0 36px -2px var(--hot-magenta);
+  }
+  .timer-frame-inner {
+    clip-path: polygon(9% 0,91% 0,100% 50%,91% 100%,9% 100%,0% 50%);
+    background: #07070c; padding: 16px 66px 20px; text-align:center; min-width: 310px;
+  }
+  .timer-eyebrow { font-weight:800; font-size: 14px; letter-spacing:0.14em; color: var(--paper); text-transform:uppercase; }
+  .battle-timer { font-family:'Anton',sans-serif; font-size: 58px; line-height:1.05; color: #fff; }
+  .timer-eq { display:flex; align-items:flex-end; justify-content:center; gap: 4px; height: 20px; margin-top: 6px; }
+  .timer-eq span {
+    width: 4px; background: linear-gradient(180deg, var(--electric-cyan), var(--hot-magenta));
+    border-radius: 2px; animation: timer-eq-bounce 1.1s ease-in-out infinite;
+  }
+  @keyframes timer-eq-bounce { 0%,100% { height: 3px; } 50% { height: 19px; } }
   .lanes { position:relative; z-index:1; display:flex; flex-direction:column; gap: 14px; }
 
   .lane { display:flex; align-items:stretch; gap: 12px; }
   .lane-plate {
-    width: 148px; flex-shrink:0; display:flex; flex-direction:column; justify-content:center;
-    background: var(--stage-black-2); border-radius: 12px; border: 2px solid var(--line);
-    padding: 8px 12px;
+    width: 148px; flex-shrink:0; position:relative; height: 104px;
+    background: rgba(12,12,18,0.8); backdrop-filter: blur(3px); border-radius: 14px; border: 2px solid var(--line);
   }
-  .lane-name { font-weight: 800; font-size: 13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .lane-db { font-family:'Anton',sans-serif; font-size: 22px; line-height:1.1; text-align:center; }
+  .lane-name {
+    position:absolute; top:8px; left:12px; right:12px;
+    font-weight: 800; font-size: 13px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .lane-db {
+    position:absolute; bottom:6px; left:0; right:0; text-align:center;
+    font-family:'Anton',sans-serif; font-size: 22px; line-height:1.1;
+  }
   .lane-db small { font-size: 9px; font-family:'Inter',sans-serif; color: var(--muted); margin-left:3px; }
-  .speedo-gauge { position:relative; width: 118px; height: 64px; margin: 4px auto 0; }
+  .speedo-gauge { position:absolute; top:50%; left:50%; transform: translate(-50%,-50%); width: 118px; height: 64px; }
   .speedo-gauge svg { position:absolute; inset:0; width:100%; height:100%; }
   .speedo-needle {
     position:absolute; left:50%; bottom:4px; width:4px; height:48px; margin-left:-2px;
@@ -154,17 +251,14 @@
   }
 
   .lane-track {
-    position: relative; flex:1; height: 96px; border-radius: 14px; overflow: hidden;
-    background:
-      repeating-linear-gradient(180deg, rgba(255,255,255,0.02) 0 2px, transparent 2px 4px),
-      linear-gradient(180deg, #2b2c33 0%, #1a1b20 45%, #202126 100%);
-    border: 1px solid #000;
-    box-shadow: inset 0 0 24px rgba(0,0,0,0.6);
+    position: relative; flex:1; height: 104px; border-radius: 10px; overflow: hidden;
+    background: linear-gradient(180deg, rgba(8,8,12,0.25) 0%, rgba(8,8,12,0.55) 100%);
+    border-top: 2px solid var(--line); border-bottom: 2px solid var(--line);
   }
   .lane-track::before {
-    content:''; position:absolute; left:0; right:0; top:50%; height: 6px; transform: translateY(-50%);
-    background-image: repeating-linear-gradient(90deg, var(--warn-yellow) 0 22px, transparent 22px 44px);
-    animation: roadmove 0.7s linear infinite reverse; opacity: 0.85;
+    content:''; position:absolute; left:0; right:0; top:50%; height: 4px; transform: translateY(-50%);
+    background-image: repeating-linear-gradient(90deg, rgba(255,255,255,0.55) 0 22px, transparent 22px 44px);
+    animation: roadmove 0.7s linear infinite reverse; opacity: 0.5;
   }
   @keyframes roadmove { from { background-position-x: 0; } to { background-position-x: -44px; } }
   .finish-line {
@@ -179,6 +273,7 @@
   .lane-vehicle svg, .lane-vehicle img { width: 100%; height: auto; filter: drop-shadow(0 8px 10px rgba(0,0,0,0.7)); }
   .lane-vehicle.leader { filter: drop-shadow(0 0 14px var(--warn-yellow)); }
 
+
   /* ---- RESULTS: победитель по центру + фейерверк ---- */
   #results { display:none; flex:1; flex-direction:column; align-items:center; justify-content:center; gap: 10px; padding: 20px; text-align:center; position:relative; }
   .trophy { font-size: 56px; margin-bottom: -4px; }
@@ -192,6 +287,26 @@
   .stat-box .lbl { font-size: 11px; color: var(--muted); text-transform:uppercase; letter-spacing:0.08em; margin-top:2px; }
   .rest-list { color: var(--muted); font-size: 14px; text-align:center; margin-top: 18px; max-width: 700px; }
 
+  .listen-block {
+    margin-top: 26px; padding-top: 20px; border-top: 1px solid var(--line);
+    width: 100%; max-width: 420px;
+  }
+  .listen-title { font-weight: 800; font-size: 14px; color: var(--muted); text-transform:uppercase; letter-spacing:0.06em; margin-bottom: 12px; }
+  .listen-list { display:flex; flex-direction:column; gap: 8px; }
+  .listen-row {
+    display:flex; align-items:center; gap: 12px; background: var(--stage-black-2);
+    border: 1px solid var(--line); border-radius: 12px; padding: 10px 14px;
+  }
+  .listen-play-btn {
+    width: 34px; height: 34px; border-radius: 50%; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center; font-size: 14px;
+    background: var(--stage-black); color: var(--paper); border: 1px solid var(--line);
+  }
+  .listen-play-btn.playing { background: var(--hot-magenta); border-color: var(--hot-magenta); }
+  .listen-play-btn:disabled { opacity: 0.35; cursor: default; }
+  .listen-name { font-weight: 700; font-size: 14px; flex: 1; text-align:left; }
+  .listen-status { font-size: 11px; color: var(--muted); }
+
   .fireworks { position:fixed; inset:0; pointer-events:none; z-index: 50; overflow:hidden; }
   .spark { position:absolute; width:7px; height:7px; border-radius:50%; animation: spark-fly 1.1s ease-out forwards; }
   @keyframes spark-fly { to { transform: translate(var(--dx), var(--dy)) scale(0.2); opacity:0; } }
@@ -200,28 +315,53 @@
 <body>
 <div class="wrap">
 
-  <div class="light-rig">
-    <div class="light"></div><div class="light"></div><div class="light"></div>
-    <div class="light"></div><div class="light"></div><div class="light"></div>
-  </div>
-
-  <div class="banner">
-    <div class="skyline" id="skyline"></div>
-    <div class="banner-row">
-      <div class="brand"><span class="hot">VOICE</span> <span class="cyan">BATTLE</span></div>
-      <div class="host-pill">Host: <b id="hostNameLabel">—</b></div>
+  <div class="top-nav">
+    <div class="top-nav-logo">
+      <div class="top-nav-logo-badge">🎙️</div>
+      <div class="top-nav-brand">VOICE<span class="hot">BATTLE</span></div>
+    </div>
+    <div class="top-nav-profile" id="profileMenuToggle">
+      <div class="top-nav-profile-text">
+        <div class="top-nav-profile-label">ВЕДУЩИЙ</div>
+        <div class="top-nav-profile-name" id="hostNameLabel">—</div>
+      </div>
+      <div class="top-nav-avatar">👤</div>
+      <div class="top-nav-chevron">▾</div>
+      <div class="top-nav-menu" id="profileMenuDropdown">
+        <button id="logoutBtnMenu">Выйти из аккаунта</button>
+      </div>
     </div>
   </div>
 
   <!-- SETUP -->
   <div id="setup">
-    <div class="eyebrow" id="welcomeLabel" style="margin-bottom:-4px;">Привет,&nbsp;ведущий</div>
-    <div class="setup-label">Сколько игроков ожидается?</div>
-    <input type="number" id="maxPlayersInput" value="8" min="1" max="30">
-    <div class="setup-label" style="margin-top:6px;">Выбери город для трассы</div>
-    <div class="city-grid" id="cityGrid"></div>
-    <button class="btn-primary" id="createRoomBtn">СОЗДАТЬ КОМНАТУ</button>
-    <button class="btn-secondary" id="logoutBtn" style="margin-top:4px;">Выйти из аккаунта</button>
+    <div class="setup-hero">
+      <div class="setup-hero-line">
+        <span class="setup-hero-dash"></span>
+        <span class="setup-hero-flag">🏁</span>
+        <span class="setup-hero-flag">🏁</span>
+        <span class="setup-hero-dash right"></span>
+      </div>
+      <div class="setup-title">ДОБРО ПОЖАЛОВАТЬ!</div>
+      <div class="setup-subtitle">Создайте комнату и пригласите игроков по QR-коду</div>
+    </div>
+
+    <div class="setup-card">
+      <div class="setup-card-title">👥 КОЛИЧЕСТВО ИГРОКОВ</div>
+      <div class="player-count-row" id="playerCountRow"></div>
+      <div class="setup-card-hint">Выберите количество игроков в комнате</div>
+    </div>
+
+    <div class="setup-card">
+      <div class="setup-card-title">🚩 ВЫБЕРИТЕ ТРАССУ</div>
+      <div class="city-grid" id="cityGrid"></div>
+    </div>
+
+    <div class="setup-footer">
+      <button class="btn-secondary" id="settingsBtn"></button>
+      <button class="btn-primary" id="createRoomBtn">СОЗДАТЬ КОМНАТУ<span class="sub">Комната будет создана и готова к игре</span></button>
+      <button class="btn-secondary" id="logoutBtn">Выйти из аккаунта</button>
+    </div>
   </div>
 
   <!-- LOBBY -->
@@ -252,13 +392,18 @@
     <div class="race-city-banner">
       <div class="city-track-far" id="cityTrackFar"></div><div class="city-track" id="cityTrack"></div>
       <video id="cityVideo" class="city-video" muted loop autoplay playsinline></video>
+      <div class="battle-header">
+        <div class="timer-frame">
+          <div class="timer-frame-inner">
+            <div class="timer-eyebrow">ОРИТЕ СЕЙЧАС!</div>
+            <div class="battle-timer" id="battleTimer">0:00</div>
+            <div class="timer-eq" id="timerEq"></div>
+          </div>
+        </div>
+      </div>
     </div>
     <div class="battle-inner">
       <div class="particles" id="particles"></div>
-      <div class="battle-header">
-        <div class="eyebrow">ОРИТЕ СЕЙЧАС!</div>
-        <div class="battle-timer" id="battleTimer">30</div>
-      </div>
       <div class="lanes" id="lanes"></div>
     </div>
   </div>
@@ -275,6 +420,13 @@
       <div class="stat-box"><div class="val" id="winnerDb">0</div><div class="lbl">дБ пик крика</div></div>
     </div>
     <div class="rest-list" id="restList"></div>
+
+    <div class="listen-block" id="listenBlock" style="display:none;">
+      <div class="listen-title">🎤 Прослушать участников</div>
+      <div class="listen-list" id="listenList"></div>
+      <audio id="playbackAudio" style="display:none;"></audio>
+    </div>
+
     <button class="btn-primary" id="againBtn" style="margin-top:22px;">ЕЩЁ РАУНД</button>
   </div>
 </div>
@@ -299,13 +451,13 @@ const nextUid = () => 'v' + (uidCounter++);
 
 const CITY_PRESETS = [
   { id: 'tokyo', name: 'Неоновый Токио', banner: 'linear-gradient(180deg, #2a0f3a 0%, #1c0a30 60%, #0a0414 100%)',
-    trackColors: ['#3a0f4a','#4a1560','#2a0f40','#1c0a30','#33115c'], landmark: 'tokyotower', video: '/videos/tokyo.mp4' },
+    trackColors: ['#3a0f4a','#4a1560','#2a0f40','#1c0a30','#33115c'], landmark: 'tokyotower', video: '/videos/tokyo.mp4', photo: '/img/cities/tokyo.png' },
   { id: 'newyork', name: 'Ночной Нью-Йорк', banner: 'linear-gradient(180deg, #0f1c3a 0%, #14102a 60%, #070a14 100%)',
-    trackColors: ['#16264d','#2a1840','#1a3350','#0f1c3a','#241a4a'], landmark: 'twin', video: '/videos/newyork.mp4' },
+    trackColors: ['#16264d','#2a1840','#1a3350','#0f1c3a','#241a4a'], landmark: 'twin', video: '/videos/newyork.mp4', photo: '/img/cities/newyork.png' },
   { id: 'tashkent', name: 'Ночной Ташкент', banner: 'linear-gradient(180deg, #0a2a3a 0%, #1a1240 60%, #05080f 100%)',
-    trackColors: ['#0e3a4a','#241a50','#0a2a3a','#152a4a','#1e1550'], landmark: 'pearl', video: '/videos/tashkent.mp4' },
+    trackColors: ['#0e3a4a','#241a50','#0a2a3a','#152a4a','#1e1550'], landmark: 'pearl', video: '/videos/tashkent.mp4', photo: '/img/cities/tashkent.png' },
   { id: 'vegas', name: 'Лас-Вегас ночью', banner: 'linear-gradient(180deg, #3a1a0a 0%, #4a0e2a 60%, #140508 100%)',
-    trackColors: ['#5c2a0e','#5c0e33','#3a1a0a','#4a0e2a','#331507'], landmark: 'vegassign', video: '/videos/vegas.mp4' }
+    trackColors: ['#5c2a0e','#5c0e33','#3a1a0a','#4a0e2a','#331507'], landmark: 'vegassign', video: '/videos/vegas.mp4', photo: '/img/cities/vegas.png' }
 ];
 let selectedCity = CITY_PRESETS[0];
 
@@ -337,6 +489,7 @@ function landmarkMarkup(type) {
 
 function buildSkyline(city) {
   const el = document.getElementById('skyline');
+  if (!el) return; // старого баннера с силуэтом города в этом дизайне больше нет
   let html = '';
   const landmarkIndex = 12;
   for (let i = 0; i < 26; i++) {
@@ -346,7 +499,8 @@ function buildSkyline(city) {
     html += `<div style="width:${w}px; height:${h}px;"></div>`;
   }
   el.innerHTML = html;
-  document.querySelector('.banner').style.background = city.banner;
+  const bannerEl = document.querySelector('.banner');
+  if (bannerEl) bannerEl.style.background = city.banner;
 }
 
 // плавающие неоновые частицы атмосферы (искры/пыль), поднимаются вверх и гаснут
@@ -391,9 +545,9 @@ function buildCityTrack(city) {
 (function renderCityGrid() {
   const grid = document.getElementById('cityGrid');
   grid.innerHTML = CITY_PRESETS.map((c, i) => `
-    <div class="city-card ${i === 0 ? 'selected' : ''}" data-city="${c.id}">
-      <div class="swatch" style="background:${c.banner};"></div>
-      <div class="cname">${c.name}</div>
+    <div class="city-card ${i === 0 ? 'selected' : ''}" data-city="${c.id}" style="--city-photo: url('${c.photo}');">
+      <div class="city-card-check">✓</div>
+      <div class="city-card-label">${c.name}</div>
     </div>
   `).join('');
   grid.querySelectorAll('.city-card').forEach(card => {
@@ -420,30 +574,57 @@ function showOnly(el) {
 
 let currentPlayers = [];
 let currentRoomCode = null;
-const SCORE_MIN = 0, SCORE_MAX = 100;
+const SCORE_MIN = 0, SCORE_MAX = 200;
 
 function progressToPercent(progressPct) {
   return Math.max(0, Math.min(90, (progressPct || 0) * 0.9));
 }
 
+// ---- количество игроков: кнопки 1..8 ----
+let selectedMaxPlayers = 8;
+(function renderPlayerCountRow() {
+  const row = document.getElementById('playerCountRow');
+  let html = '';
+  for (let n = 1; n <= 8; n++) {
+    html += `<button type="button" class="player-count-btn ${n === selectedMaxPlayers ? 'selected' : ''}" data-n="${n}">${n}</button>`;
+  }
+  row.innerHTML = html;
+  row.querySelectorAll('.player-count-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      selectedMaxPlayers = parseInt(btn.dataset.n, 10);
+      row.querySelectorAll('.player-count-btn').forEach(b => b.classList.remove('selected'));
+      btn.classList.add('selected');
+    });
+  });
+})();
+
 document.getElementById('createRoomBtn').addEventListener('click', () => {
-  const maxPlayers = parseInt(document.getElementById('maxPlayersInput').value, 10) || 8;
-  socket.emit('createRoom', { maxPlayers });
+  socket.emit('createRoom', { maxPlayers: selectedMaxPlayers });
 });
 
-document.getElementById('logoutBtn').addEventListener('click', async () => {
+async function doLogout() {
   await fetch('/api/host/logout', { method: 'POST' });
   location.href = '/host-login.html';
+}
+document.getElementById('logoutBtn').addEventListener('click', doLogout);
+document.getElementById('logoutBtnMenu').addEventListener('click', doLogout);
+
+// раскрывающееся меню профиля в шапке
+document.getElementById('profileMenuToggle').addEventListener('click', (e) => {
+  document.getElementById('profileMenuDropdown').classList.toggle('open');
+  e.stopPropagation();
+});
+document.addEventListener('click', () => {
+  document.getElementById('profileMenuDropdown').classList.remove('open');
 });
 
-// подтягиваем имя вошедшего ведущего для приветствия (сервер всё равно
-// сам подставит его в комнату — это только для UI)
+// подтягиваем имя вошедшего ведущего в шапку
 fetch('/api/session').then(r => r.json()).then(sess => {
   if (!sess.role) {
     location.href = '/host-login.html';
     return;
   }
-  document.getElementById('welcomeLabel').textContent = `Привет, ${sess.displayName || sess.username}`;
+  document.getElementById('hostNameLabel').textContent = sess.displayName || sess.username;
 });
 
 function renderQr(baseUrl) {
@@ -463,7 +644,7 @@ socket.on('roomCreated', ({ roomCode, maxPlayers, hostName }) => {
   document.getElementById('hostNameLabel').textContent = hostName;
   showOnly(lobbyEl);
 
-const tunnelUrl = new URLSearchParams(location.search).get('tunnel');
+ const tunnelUrl = new URLSearchParams(location.search).get('tunnel');
 
 if (tunnelUrl) {
 
@@ -538,6 +719,11 @@ socket.on('battleStarted', () => {
   battleEl.classList.remove('idle');
   renderLanes(currentPlayers);
 
+  const eqEl = document.getElementById('timerEq');
+  eqEl.innerHTML = Array.from({ length: 16 }).map((_, i) =>
+    `<span style="animation-delay:${(i * 0.07).toFixed(2)}s;"></span>`
+  ).join('');
+
   let elapsed = 0;
   document.getElementById('battleTimer').textContent = '0:00';
   if (raceStopwatch) clearInterval(raceStopwatch);
@@ -577,7 +763,7 @@ function renderLanes(players) {
   const lanes = document.getElementById('lanes');
   lanes.innerHTML = players.map(p => `
     <div class="lane">
-      <div class="lane-plate" style="border-color:${p.carColor};">
+      <div class="lane-plate" style="border-color:${p.carColor}; box-shadow: 0 0 22px -6px ${p.carColor};">
         <div class="lane-name">${escapeHtml(p.name)}</div>
         <div class="speedo-gauge">
           ${gaugeArcSvg(nextUid())}
@@ -586,7 +772,7 @@ function renderLanes(players) {
         </div>
         <div class="lane-db" id="score-${p.id}" style="color:${p.carColor};">0 <small>дБ</small></div>
       </div>
-      <div class="lane-track" id="track-${p.id}" style="box-shadow: inset 0 0 24px rgba(0,0,0,0.6), 0 0 0 1px ${p.carColor}22, 0 0 18px 0 ${p.carColor}33;">
+      <div class="lane-track" id="track-${p.id}" style="border-top-color:${p.carColor}; border-bottom-color:${p.carColor}; box-shadow: 0 0 16px -2px ${p.carColor}, inset 0 0 24px rgba(0,0,0,0.5);">
         <div class="finish-line"></div>
         <div class="lane-vehicle" id="car-${p.id}" style="left:0%;">${vehicleImg(p.vehicleType)}</div>
       </div>
@@ -618,8 +804,8 @@ socket.on('liveScores', (players) => {
       car.classList.toggle('leader', p.id === leaderId);
     }
     if (trackEl) {
-      const glowSize = 12 + intensityPercent(p.currentScore) * 0.35;
-      trackEl.style.boxShadow = `inset 0 0 24px rgba(0,0,0,0.6), 0 0 0 1px ${p.carColor}33, 0 0 ${glowSize}px 2px ${p.carColor}55`;
+      const glowSize = 14 + intensityPercent(p.currentScore) * 0.4;
+      trackEl.style.boxShadow = `0 0 ${glowSize}px -2px ${p.carColor}, inset 0 0 24px rgba(0,0,0,0.5)`;
     }
     if (scoreEl) scoreEl.innerHTML = Math.max(0, Math.round(p.currentScore)) + ' <small>дБ</small>';
 
@@ -674,9 +860,117 @@ socket.on('battleOver', (results) => {
     ? rest.map(p => `${p.place}. ${p.name} — ${Math.max(0, Math.round(p.peakScore))} дБ, ${(p.totalDistanceKm || 0).toFixed(2)} км`).join('  ·  ')
     : '';
   launchFireworks();
+  renderListenList(results);
+});
+
+// ---- прослушивание записей участников ----
+const playbackAudio = document.getElementById('playbackAudio');
+let currentlyPlayingBtn = null;
+
+let recordingReadyIds = new Set();
+let recordingWaitTimeout = null;
+
+function renderListenList(results) {
+  const block = document.getElementById('listenBlock');
+  const list = document.getElementById('listenList');
+
+  if (!currentRoomCode || !results.length) {
+    block.style.display = 'none';
+    return;
+  }
+
+  block.style.display = 'block';
+  playbackAudio.pause();
+  playbackAudio.removeAttribute('src');
+  currentlyPlayingBtn = null;
+  recordingReadyIds = new Set();
+  if (recordingWaitTimeout) clearTimeout(recordingWaitTimeout);
+
+  list.innerHTML = results.map(p => `
+    <div class="listen-row">
+      <button class="listen-play-btn" data-id="${p.id}" data-name="${escapeHtml(p.name)}" disabled>▶</button>
+      <div class="listen-name">${escapeHtml(p.name)}</div>
+      <div class="listen-status" id="listen-status-${p.id}">Загрузка записи…</div>
+    </div>
+  `).join('');
+
+  list.querySelectorAll('.listen-play-btn').forEach(btn => {
+    btn.addEventListener('click', () => togglePlay(btn));
+  });
+
+  // если через 12 секунд запись от кого-то так и не пришла (например, браузер
+  // участника не поддержал запись) — честно показываем, что записи нет
+  recordingWaitTimeout = setTimeout(() => {
+    list.querySelectorAll('.listen-play-btn').forEach(btn => {
+      if (!recordingReadyIds.has(btn.dataset.id)) {
+        const statusEl = document.getElementById('listen-status-' + btn.dataset.id);
+        if (statusEl) statusEl.textContent = 'Нет записи';
+      }
+    });
+  }, 12000);
+}
+
+socket.on('recordingReady', ({ playerId }) => {
+  recordingReadyIds.add(playerId);
+  const btn = document.querySelector(`.listen-play-btn[data-id="${playerId}"]`);
+  const statusEl = document.getElementById('listen-status-' + playerId);
+  if (btn) btn.disabled = false;
+  if (statusEl) statusEl.textContent = '';
+});
+
+function togglePlay(btn) {
+  const playerId = btn.dataset.id;
+  const statusEl = document.getElementById('listen-status-' + playerId);
+
+  // если сейчас играет именно эта запись — просто остановить
+  if (currentlyPlayingBtn === btn) {
+    playbackAudio.pause();
+    btn.classList.remove('playing');
+    btn.textContent = '▶';
+    if (statusEl) statusEl.textContent = '';
+    currentlyPlayingBtn = null;
+    return;
+  }
+
+  // остановить предыдущую запись, если играла
+  if (currentlyPlayingBtn) {
+    currentlyPlayingBtn.classList.remove('playing');
+    currentlyPlayingBtn.textContent = '▶';
+    const prevStatus = document.getElementById('listen-status-' + currentlyPlayingBtn.dataset.id);
+    if (prevStatus) prevStatus.textContent = '';
+  }
+
+  btn.disabled = true;
+  if (statusEl) statusEl.textContent = 'Загрузка…';
+
+  playbackAudio.src = `/api/recording/${currentRoomCode}/${playerId}`;
+  playbackAudio.play()
+    .then(() => {
+      btn.disabled = false;
+      btn.classList.add('playing');
+      btn.textContent = '⏸';
+      if (statusEl) statusEl.textContent = '';
+      currentlyPlayingBtn = btn;
+    })
+    .catch(() => {
+      btn.disabled = false;
+      if (statusEl) statusEl.textContent = 'Нет записи';
+      currentlyPlayingBtn = null;
+    });
+}
+
+playbackAudio.addEventListener('ended', () => {
+  if (currentlyPlayingBtn) {
+    currentlyPlayingBtn.classList.remove('playing');
+    currentlyPlayingBtn.textContent = '▶';
+    const statusEl = document.getElementById('listen-status-' + currentlyPlayingBtn.dataset.id);
+    if (statusEl) statusEl.textContent = '';
+    currentlyPlayingBtn = null;
+  }
 });
 
 document.getElementById('againBtn').addEventListener('click', () => {
+  playbackAudio.pause();
   socket.emit('resetBattle');
 });
 

@@ -149,6 +149,8 @@ function vehicleImg(type, extraStyle) {
 
 const socket = io();
 let audioCtx, analyser, micStream, rafId, myCarColor = '#08d9d6', myVehicleType = 'coupe';
+let mediaRecorder = null;
+let recordedChunks = [];
 
 const screens = ['joinScreen','waitScreen','countdownScreen','battleScreen','resultsScreen'];
 function show(id) {
@@ -170,6 +172,72 @@ async function setupMic() {
   source.connect(analyser);
 }
 
+// ---- запись голоса на весь раунд, чтобы ведущий потом мог переслушать ----
+function pickRecorderMimeType() {
+  const candidates = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg'];
+  for (const type of candidates) {
+    if (window.MediaRecorder && MediaRecorder.isTypeSupported && MediaRecorder.isTypeSupported(type)) {
+      return type;
+    }
+  }
+  return ''; // пусть браузер сам выберет
+}
+
+function startRecording() {
+  if (!micStream || !window.MediaRecorder) return;
+
+  recordedChunks = [];
+  const mimeType = pickRecorderMimeType();
+
+  try {
+    const options = mimeType ? { mimeType, audioBitsPerSecond: 32000 } : { audioBitsPerSecond: 32000 };
+    mediaRecorder = new MediaRecorder(micStream, options);
+  } catch (e) {
+    console.warn('Запись голоса недоступна в этом браузере:', e);
+    mediaRecorder = null;
+    return;
+  }
+
+  mediaRecorder.ondataavailable = (e) => {
+    if (e.data && e.data.size > 0) recordedChunks.push(e.data);
+  };
+
+  mediaRecorder.onerror = (e) => {
+    console.warn('Ошибка записи голоса:', e.error || e);
+  };
+
+  mediaRecorder.start();
+}
+
+function sendRecordedChunks(mimeType) {
+  if (!recordedChunks.length) return;
+  const chunksToSend = recordedChunks;
+  recordedChunks = [];
+
+  const blob = new Blob(chunksToSend, { type: mimeType || 'audio/webm' });
+  blob.arrayBuffer()
+    .then((arrayBuffer) => {
+      socket.emit('submitRecording', { mimeType: mimeType || 'audio/webm', buffer: arrayBuffer });
+    })
+    .catch((e) => console.warn('Не удалось отправить запись:', e));
+}
+
+function stopRecordingAndSend() {
+  if (!mediaRecorder) return;
+
+  const recorder = mediaRecorder;
+  const mimeType = recorder.mimeType || 'audio/webm';
+
+  // если рекордер уже почему-то не активен — просто досылаем то, что уже накопилось
+  if (recorder.state === 'inactive') {
+    sendRecordedChunks(mimeType);
+    return;
+  }
+
+  recorder.onstop = () => sendRecordedChunks(mimeType);
+  recorder.stop();
+}
+
 function getRms() {
   const data = new Uint8Array(analyser.fftSize);
   analyser.getByteTimeDomainData(data);
@@ -181,16 +249,16 @@ function getRms() {
   return Math.sqrt(sumSquares / data.length);
 }
 
-const SCORE_MIN = 0, SCORE_MAX = 100;
+const SCORE_MIN = 0, SCORE_MAX = 200;
 const RMS_DB_FLOOR = -50, RMS_DB_CEIL = -5;
 function rmsToScore(rms) {
   const safeRms = Math.max(rms, 0.000001);
   const db = 20 * Math.log10(safeRms);
-  const pct = ((db - RMS_DB_FLOOR) / (RMS_DB_CEIL - RMS_DB_FLOOR)) * 100;
-  return Math.max(0, Math.min(100, pct));
+  const pct = ((db - RMS_DB_FLOOR) / (RMS_DB_CEIL - RMS_DB_FLOOR)) * 200;
+  return Math.max(0, Math.min(200, pct));
 }
 function scoreToPercent(score) {
-  return Math.max(0, Math.min(100, score));
+  return Math.max(0, Math.min(100, (score / SCORE_MAX) * 100));
 }
 
 document.getElementById('joinBtn').addEventListener('click', async () => {
@@ -240,6 +308,7 @@ let myStopwatch = null;
 
 socket.on('battleStarted', () => {
   show('battleScreen');
+  startRecording();
 
   let elapsed = 0;
   document.getElementById('timerPill').textContent = '0:00';
@@ -271,6 +340,7 @@ socket.on('battleStarted', () => {
 socket.on('battleOver', (results) => {
   cancelAnimationFrame(rafId);
   if (myStopwatch) { clearInterval(myStopwatch); myStopwatch = null; }
+  stopRecordingAndSend();
   show('resultsScreen');
   const mine = results.find(r => r.id === socket.id);
   document.getElementById('placeBig').textContent = mine ? mine.place : '-';
@@ -280,6 +350,11 @@ socket.on('battleOver', (results) => {
 
 socket.on('backToLobby', () => {
   cancelAnimationFrame(rafId);
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+    mediaRecorder.onstop = null;
+    mediaRecorder.stop();
+  }
+  recordedChunks = [];
   show('waitScreen');
 });
 </script>
