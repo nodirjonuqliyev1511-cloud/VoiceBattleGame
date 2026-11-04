@@ -66,14 +66,11 @@ function saveHosts(hosts) {
     fs.writeFileSync(HOSTS_FILE, JSON.stringify(hosts, null, 2), "utf8");
 }
 
-// ВАЖНО про Render: бесплатный/обычный веб-сервис Render использует
-// временную файловую систему — при каждом новом деплое (не при обычном
-// перезапуске/сне) она сбрасывается, и файл data/hosts.json обнулится,
-// то есть все созданные ведущие удалятся. Для вечеринки это не страшно
-// (создал ведущих заново перед событием), но если нужно, чтобы аккаунты
-// переживали каждый деплой — на Render подключается "Persistent Disk"
-// (платно) с точкой монтирования на папку data, либо аккаунты хранятся
-// во внешней базе данных. Для начала этого файла достаточно.
+// Аккаунты добавляются локально через админку и сохраняются в data/hosts.json.
+// Этот файл включён в Git: после commit/push Render получает его вместе с кодом.
+// Поэтому база данных для этого порядка работы не нужна. Изменения, сделанные
+// только в админке на Render, могут потеряться при перезапуске или деплое:
+// файловая система сервиса временная, исходным списком остаётся файл из Git.
 
 function timingSafeEqual(a, b) {
     const bufA = Buffer.from(String(a));
@@ -117,6 +114,12 @@ app.get("/admin.html", requireAdmin, (req, res) => {
 });
 app.get("/host.html", requireHost, (req, res) => {
     res.sendFile(path.join(__dirname, "public", "host.html"));
+});
+app.get("/games.html", requireHost, (req, res) => {
+    res.sendFile(path.join(__dirname, "public", "games.html"));
+});
+app.get("/baby.html", requireHost, (req, res) => {
+    res.sendFile(path.join(__dirname, "public", "baby.html"));
 });
 
 // ---- API логина администратора ----
@@ -302,6 +305,7 @@ app.get("/api/recording/:roomCode/:playerId", (req, res) => {
 
     const room = rooms[req.params.roomCode];
     if (!room) return res.status(404).end();
+    if (room.gameMode === "baby") return res.status(404).end();
 
     if (sess.role !== "admin" && sess.username !== room.hostUsername) {
         return res.status(403).end();
@@ -353,6 +357,18 @@ const FINISH_DISTANCE_KM = 60;
 
 const rooms = {};
 
+function roomInfo(roomCode, room) {
+    return {
+        roomCode, gameMode: room.gameMode, status: room.status,
+        availableSides: room.gameMode === "baby"
+            ? ["boy", "girl"].filter(side => !room.players.some(p => p.babyType === side)) : []
+    };
+}
+
+function publishRoomInfo(roomCode, room) {
+    io.to("watch:" + roomCode).emit("roomInfo", roomInfo(roomCode, room));
+}
+
 function generateRoomCode() {
     const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     let code = "";
@@ -378,11 +394,23 @@ io.on("connection", (socket) => {
 
     console.log("🟢 Подключился:", socket.id);
 
+    // Preview the room's teams before microphone access or joining. No audio is sent here.
+    socket.on("watchRoom", ({ roomCode } = {}) => {
+        const code = String(roomCode || "").trim().toUpperCase();
+        if (socket.data.watchingRoom) socket.leave("watch:" + socket.data.watchingRoom);
+        socket.data.watchingRoom = null;
+        const room = rooms[code];
+        if (!room) { socket.emit("roomInfoError", { roomCode: code, message: "Комната не найдена" }); return; }
+        socket.data.watchingRoom = code;
+        socket.join("watch:" + code);
+        socket.emit("roomInfo", roomInfo(code, room));
+    });
+
     // ==========================
     // СОЗДАНИЕ КОМНАТЫ (только авторизованный ведущий/админ)
     // ==========================
 
-    socket.on("createRoom", ({ maxPlayers }) => {
+    socket.on("createRoom", ({ maxPlayers, gameMode = "race" } = {}) => {
 
         const sess = socket.request.session;
 
@@ -390,6 +418,12 @@ io.on("connection", (socket) => {
             socket.emit("joinError", "Нужно войти как ведущий");
             return;
         }
+
+        if (gameMode !== "race" && gameMode !== "baby") {
+            socket.emit("joinError", "Неизвестная игра");
+            return;
+        }
+        maxPlayers = gameMode === "baby" ? 2 : Math.max(1, Math.min(8, Math.floor(Number(maxPlayers) || 8)));
 
         const roomCode = generateRoomCode();
         const hostName = sess.displayName || sess.username || "Ведущий";
@@ -399,10 +433,12 @@ io.on("connection", (socket) => {
             hostId: socket.id,
             hostUsername: sess.username,
             hostName,
+            gameMode,
             maxPlayers: maxPlayers,
             players: [],
             status: "lobby", // lobby | battling | finished
             battleTimer: null,
+            countdownTimer: null,
             recordings: {} // playerId -> { buffer: Buffer, mimeType: string } — только в памяти, не на диске
 
         };
@@ -410,7 +446,8 @@ io.on("connection", (socket) => {
         socket.emit("roomCreated", {
             roomCode,
             maxPlayers,
-            hostName
+            hostName,
+            gameMode
         });
 
         console.log(`🎮 Комната ${roomCode} создана (ведущий: ${hostName})`);
@@ -421,7 +458,7 @@ io.on("connection", (socket) => {
     // ПОДКЛЮЧЕНИЕ ИГРОКА
     // ==========================
 
-    socket.on("joinRoom", ({ roomCode, playerName }) => {
+    socket.on("joinRoom", ({ roomCode, playerName, babyType: requestedSide }) => {
 
         const room = rooms[roomCode];
 
@@ -435,9 +472,24 @@ io.on("connection", (socket) => {
             return;
         }
 
+        if (room.gameMode === "baby" && room.players.some(p => p.id === socket.id)) {
+            socket.emit("joinError", "Ты уже подключён к этой комнате");
+            return;
+        }
+
         if (room.players.length >= room.maxPlayers) {
             socket.emit("joinError", "Комната уже заполнена");
             return;
+        }
+
+        let babyType = null;
+        if (room.gameMode === "baby") {
+            const available = roomInfo(roomCode, room).availableSides;
+            // If another phone just took a team, the second phone gets the remaining side.
+            if (available.length === 1) babyType = available[0];
+            else if (available.includes(requestedSide)) babyType = requestedSide;
+            else { socket.emit("joinError", "Выберите команду: мальчик или девочка"); return; }
+            playerName = babyType === "boy" ? "Команда «Мальчик»" : "Команда «Девочка»";
         }
 
         const player = {
@@ -445,6 +497,7 @@ io.on("connection", (socket) => {
             name: playerName,
             carColor: CAR_COLORS[room.players.length % CAR_COLORS.length],
             vehicleType: VEHICLE_TYPES[room.players.length % VEHICLE_TYPES.length],
+            babyType,
             currentScore: 0,
             peakScore: -999,
             totalDistanceKm: 0,
@@ -455,9 +508,13 @@ io.on("connection", (socket) => {
 
         room.players.push(player);
         socket.data.roomCode = roomCode;
+        if (socket.data.watchingRoom) socket.leave("watch:" + socket.data.watchingRoom);
+        socket.data.watchingRoom = null;
 
-        socket.emit("joinSuccess", { roomCode, playerName, carColor: player.carColor, vehicleType: player.vehicleType });
+        socket.emit("joinSuccess", { roomCode, playerName, carColor: player.carColor, vehicleType: player.vehicleType,
+            gameMode: room.gameMode, babyType: player.babyType });
         io.to(room.hostId).emit("playersUpdated", room.players);
+        publishRoomInfo(roomCode, room);
 
         console.log(`👤 ${playerName} подключился к ${roomCode}`);
 
@@ -475,6 +532,8 @@ io.on("connection", (socket) => {
         const { code: roomCode, room } = found;
 
         if (room.players.length === 0) return;
+        if (room.gameMode === "baby" && room.players.length !== 2) return;
+        if (room.gameMode === "baby" && room.status !== "lobby" && room.status !== "finished") return;
         if (room.status === "battling") return;
 
         room.recordings = {};
@@ -488,14 +547,19 @@ io.on("connection", (socket) => {
             player.lastTickAt = null;
         });
 
+        if (room.gameMode === "baby") room.status = "countdown";
+        if (room.gameMode === "baby") publishRoomInfo(roomCode, room);
         io.to(room.hostId).emit("countdown", COUNTDOWN_SECONDS);
         room.players.forEach(player => {
             io.to(player.id).emit("countdown", COUNTDOWN_SECONDS);
         });
 
-        setTimeout(() => {
+        room.countdownTimer = setTimeout(() => {
+
+            if (room.gameMode === "baby" && (rooms[roomCode] !== room || room.status !== "countdown" || room.players.length !== 2)) return;
 
             room.status = "battling";
+            if (room.gameMode === "baby") publishRoomInfo(roomCode, room);
 
             const startedAt = Date.now();
             room.players.forEach(player => { player.lastTickAt = startedAt; });
@@ -518,11 +582,12 @@ io.on("connection", (socket) => {
         if (!room || room.status !== "battling") return;
 
         room.status = "finished";
+        if (room.gameMode === "baby") publishRoomInfo(roomCode, room);
         if (room.battleTimer) clearTimeout(room.battleTimer);
 
         const results = room.players
             .map(p => ({
-                id: p.id, name: p.name, carColor: p.carColor, vehicleType: p.vehicleType,
+                id: p.id, name: p.name, carColor: p.carColor, vehicleType: p.vehicleType, babyType: p.babyType,
                 peakScore: Math.round(p.peakScore * 10) / 10,
                 totalDistanceKm: Math.round(p.totalDistanceKm * 100) / 100,
                 finished: p.finished, finishedAt: p.finishedAt || Infinity,
@@ -580,6 +645,7 @@ io.on("connection", (socket) => {
             name: p.name,
             carColor: p.carColor,
             vehicleType: p.vehicleType,
+            babyType: p.babyType,
             currentScore: p.currentScore,
             peakScore: Math.round(p.peakScore * 10) / 10,
             totalDistanceKm: Math.round(p.totalDistanceKm * 100) / 100,
@@ -600,6 +666,8 @@ io.on("connection", (socket) => {
         const roomCode = socket.data.roomCode;
         const room = rooms[roomCode];
         if (!room) return;
+        // This game only receives live loudness: never retain or replay audio.
+        if (room.gameMode === "baby") return;
 
         const player = room.players.find(p => p.id === socket.id);
         if (!player) return;
@@ -649,6 +717,8 @@ io.on("connection", (socket) => {
         if (room.battleTimer) clearTimeout(room.battleTimer);
 
         room.status = "lobby";
+        if (room.gameMode === "baby") publishRoomInfo(found.code, room);
+        if (room.gameMode === "baby") clearTimeout(room.countdownTimer);
         room.recordings = {};
         room.players.forEach(p => {
             p.currentScore = 0;
@@ -679,9 +749,11 @@ io.on("connection", (socket) => {
 
             if (room.hostId === socket.id) {
                 if (room.battleTimer) clearTimeout(room.battleTimer);
+                clearTimeout(room.countdownTimer);
                 room.players.forEach(player => {
                     io.to(player.id).emit("joinError", "Ведущий завершил игру");
                 });
+                io.to("watch:" + roomCode).emit("roomClosed", { roomCode });
                 delete rooms[roomCode];
                 console.log(`🗑 Комната ${roomCode} удалена`);
                 continue;
@@ -692,6 +764,15 @@ io.on("connection", (socket) => {
                 console.log(`👋 Игрок вышел из комнаты ${roomCode}`);
                 room.players.splice(index, 1);
                 io.to(room.hostId).emit("playersUpdated", room.players);
+                if (room.gameMode === "baby" && (room.status === "battling" || room.status === "countdown")) {
+                    clearTimeout(room.countdownTimer);
+                    room.status = "lobby";
+                    room.recordings = {};
+                    io.to(room.hostId).emit("backToLobby");
+                    io.to(room.hostId).emit("joinError", "Телефон команды отключился. Подключите его и начните раунд заново.");
+                    room.players.forEach(p => io.to(p.id).emit("backToLobby"));
+                }
+                publishRoomInfo(roomCode, room);
             }
 
         }

@@ -2,10 +2,14 @@
 <html lang="ru">
 <head>
 <meta charset="UTF-8">
-<title>Voice Battle — участник</title>
+<title>ШумParty — участник</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/nursery.css">
+<link rel="stylesheet" href="/team-chooser.css">
 <script src="/socket.io/socket.io.js"></script>
+<script src="/platform-brand.js"></script><script src="/nursery-art.js"></script>
+<script src="/team-chooser.js"></script>
 <style>
   .screen { min-height: 100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; padding: 24px; text-align:center; }
   .logo { font-size: 30px; margin-bottom: 6px; }
@@ -66,24 +70,35 @@
 
   #resultsScreen { display:none; }
   .place-big { font-size: 90px; color: var(--warn-yellow); }
+  body.baby-controller { --stage-black:#fff7e9; --stage-black-2:#fffdf7; --paper:#71584e; --muted:#9c8476; --line:#e6d3ba; --hot-magenta:#c87993; --electric-cyan:#4a96a3; --warn-yellow:#bb824a; background:repeating-linear-gradient(90deg,#e5f1eb 0 45px,#dcece7 45px 90px); font-family:'Trebuchet MS',Arial,sans-serif; }
+  body.baby-controller.girl-controller { background:repeating-linear-gradient(90deg,#fce8e9 0 45px,#f7dde2 45px 90px); }
+  .baby-controller .display,.baby-controller .speedo-value { font-family:'Trebuchet MS',Arial,sans-serif;font-weight:900; }
+  .baby-controller .logo { font-size:30px;letter-spacing:-1px; }.baby-controller .screen { padding:22px; }
+  .baby-controller #joinScreen,.baby-controller #waitScreen,.baby-controller #resultsScreen { background:#fffbf1;border:2px solid #e2cdb4;border-radius:22px;padding:27px 22px;width:min(380px,100%);box-shadow:0 7px 0 #b28e6a18; }
+  .baby-controller #waitScreen .pulse { width:190px;height:190px;border:0;background:none;animation:none;margin:5px auto; }
+  .baby-controller .speedo { background:#fffbf1;border:2px solid #e2cdb4;box-shadow:0 7px 0 #b28e6a18; }.baby-controller .speedo::before { opacity:.2; }.baby-controller .speedo-glow { background:linear-gradient(0deg,#9dd9d566,#f7d6df77); }.baby-controller .speedo-car { width:190px;margin-bottom:-15px; }.baby-controller .speedo-value { font-size:39px; }
+  .baby-controller .btn-primary { background:#559ca7;color:#fffaf0;box-shadow:0 4px 0 #377d89;border:2px solid #377d89; }.baby-controller .btn-primary:hover {box-shadow:0 5px 0 #377d89;}.baby-controller .timer-pill { background:#fffbf1;color:#8d7060; }.baby-controller .cd-num { color:#4d9aa7; }.baby-controller .place-big { color:#4d9aa7; }
+  #babyResultArt {width:170px;margin:5px auto;}#playerConnection {position:fixed;top:12px;left:12px;right:12px;padding:12px;background:#fff1d8;color:#745744;border:1px solid #c09b73;border-radius:12px;font:14px 'Trebuchet MS',sans-serif;z-index:20;text-align:center;}#playerConnection[hidden]{display:none;}
 </style>
 </head>
 <body>
+<div id="playerConnection" role="alert" hidden></div>
 <div class="screen">
 
   <div id="joinScreen">
-    <div class="logo display"><span class="hot">VOICE</span> <span class="cyan">BATTLE</span></div>
-    <div style="color:var(--muted); font-size:15px;">Введи код комнаты и своё имя</div>
+    <div class="logo display" id="joinLogo"><span data-platform-name>ШумParty</span></div>
+    <div style="color:var(--muted); font-size:15px;" id="joinDescription">Введи код комнаты и своё имя</div>
     <input type="text" id="roomInput" class="field" placeholder="КОД КОМНАТЫ" maxlength="6" autocomplete="off" style="text-transform:uppercase; letter-spacing:0.1em;">
     <input type="text" id="nameInput" class="field" placeholder="Твоё имя" maxlength="20" autocomplete="off">
+    <div class="team-choice" id="teamChoice" hidden><div class="team-choice-grid"><button type="button" class="team-pick boy" id="chooseBoy" aria-pressed="false"><span id="teamBoyArt"></span><strong>Команда<br>«Мальчик»</strong><small id="boyAvailability"></small></button><button type="button" class="team-pick girl" id="chooseGirl" aria-pressed="false"><span id="teamGirlArt"></span><strong>Команда<br>«Девочка»</strong><small id="girlAvailability"></small></button></div><p class="team-choice-hint" id="teamChoiceHint"></p></div>
     <button class="btn-primary" id="joinBtn">ПРИСОЕДИНИТЬСЯ</button>
     <div id="errorText" style="color:var(--hot-magenta); font-size:13px; margin-top:14px; max-width:280px;"></div>
   </div>
 
   <div id="waitScreen" style="display:none;">
-    <div class="logo display"><span class="cyan">ТЫ В ИГРЕ</span></div>
-    <div class="pulse">🎤</div>
-    <div style="color:var(--muted);">Жди, пока ведущий начнёт баттл…</div>
+    <div class="logo display"><span class="cyan" id="waitingTitle">ТЫ В ИГРЕ</span></div>
+    <div class="pulse" id="waitingArt">🎤</div>
+    <div style="color:var(--muted);" id="waitingHint">Жди, пока ведущий начнёт баттл…</div>
   </div>
 
   <div id="countdownScreen">
@@ -93,7 +108,7 @@
 
   <div id="battleScreen">
     <div class="timer-pill" id="timerPill">0:00</div>
-    <div class="eyebrow" style="margin-bottom:10px;">ОРИ КАК МОЖНО ГРОМЧЕ!</div>
+    <div class="eyebrow" style="margin-bottom:10px;" id="battleHint">ОРИ КАК МОЖНО ГРОМЧЕ!</div>
     <div class="speedo">
       <div class="speedo-glow" id="speedoGlow"></div>
       <div class="speedo-car" id="speedoCar"></div>
@@ -125,9 +140,10 @@
   </div>
 
   <div id="resultsScreen">
+    <div id="babyResultArt" hidden></div>
     <div class="eyebrow">ФИНИШ</div>
     <div class="place-big display" id="placeBig">-</div>
-    <div style="color:var(--muted); font-size:14px; margin-top:10px;">место в баттле</div>
+    <div style="color:var(--muted); font-size:14px; margin-top:10px;" id="placeCaption">место в баттле</div>
     <div style="color:var(--electric-cyan); font-size:20px; margin-top:10px; font-weight:800;" id="myPeak"></div>
     <div style="color:var(--muted); font-size:15px; margin-top:6px;" id="myDistance"></div>
     <div style="color:var(--muted); font-size:13px; margin-top:18px;">Смотри полный результат на экране ведущего</div>
@@ -151,6 +167,7 @@ const socket = io();
 let audioCtx, analyser, micStream, rafId, myCarColor = '#08d9d6', myVehicleType = 'coupe';
 let mediaRecorder = null;
 let recordedChunks = [];
+let isBabyGame = false, myBabyType = 'boy';
 
 const screens = ['joinScreen','waitScreen','countdownScreen','battleScreen','resultsScreen'];
 function show(id) {
@@ -160,6 +177,7 @@ function show(id) {
 const params = new URLSearchParams(location.search);
 const prefillRoom = params.get('room');
 if (prefillRoom) document.getElementById('roomInput').value = prefillRoom.toUpperCase();
+const teamChooser = createTeamChooser({socket});
 
 async function setupMic() {
   micStream = await navigator.mediaDevices.getUserMedia({
@@ -263,7 +281,8 @@ function scoreToPercent(score) {
 
 document.getElementById('joinBtn').addEventListener('click', async () => {
   const roomCode = document.getElementById('roomInput').value.trim().toUpperCase();
-  const name = document.getElementById('nameInput').value.trim() || 'Игрок';
+  const babyRoom = teamChooser.mode === 'baby';
+  const name = babyRoom ? '' : document.getElementById('nameInput').value.trim() || 'Игрок';
   const errEl = document.getElementById('errorText');
   errEl.textContent = '';
 
@@ -271,26 +290,53 @@ document.getElementById('joinBtn').addEventListener('click', async () => {
     errEl.textContent = 'Введи код комнаты';
     return;
   }
+  if (babyRoom && !teamChooser.canJoin()) { errEl.textContent = 'Выберите свободную команду'; return; }
+  if (babyRoom) teamChooser.setPending(true);
 
   try {
     await setupMic();
   } catch (e) {
+    if (babyRoom) teamChooser.setPending(false);
     errEl.textContent = 'Не удалось получить доступ к микрофону. Разреши доступ в браузере и попробуй снова.';
     return;
   }
 
-  socket.emit('joinRoom', { roomCode, playerName: name });
+  socket.emit('joinRoom', { roomCode, playerName: name, ...(babyRoom ? {babyType: teamChooser.side} : {}) });
 });
 
-socket.on('joinSuccess', ({ carColor, vehicleType }) => {
+socket.on('joinSuccess', ({ carColor, vehicleType, gameMode, babyType }) => {
+  teamChooser.joined();
+  document.getElementById('playerConnection').hidden = true;
   myCarColor = carColor || myCarColor;
   myVehicleType = vehicleType || myVehicleType;
-  document.getElementById('speedoCar').innerHTML = vehicleImg(myVehicleType);
+  isBabyGame = gameMode === 'baby';
+  myBabyType = babyType === 'girl' ? 'girl' : 'boy';
+  document.body.classList.toggle('baby-controller', isBabyGame);
+  document.body.classList.toggle('girl-controller', isBabyGame && myBabyType === 'girl');
+  document.getElementById('speedoCar').innerHTML = isBabyGame ? NurseryArt.baby(myBabyType) : vehicleImg(myVehicleType);
+  if (isBabyGame) {
+    document.getElementById('joinLogo').innerHTML = '<span class="cyan">'+PlatformBrand.babyFirstLine+'</span><br><span class="hot" style="font-size:.65em">'+PlatformBrand.babySecondLine+'</span>';
+    document.title = PlatformBrand.babyName + ' — участник';
+    document.getElementById('waitingTitle').textContent = myBabyType === 'girl' ? 'КОМАНДА «ДЕВОЧКА»' : 'КОМАНДА «МАЛЬЧИК»';
+    document.getElementById('waitingArt').innerHTML = NurseryArt.baby(myBabyType);
+    document.getElementById('waitingHint').textContent = 'Соберите команду вокруг этого телефона. После старта кричите вместе!';
+    document.getElementById('battleHint').textContent = 'КОМАНДА, КРИЧИМ ВМЕСТЕ!';
+    document.getElementById('placeCaption').textContent = 'место вашей команды';
+  }
   show('waitScreen');
 });
 
 socket.on('joinError', (msg) => {
+  teamChooser.failed();
   document.getElementById('errorText').textContent = msg;
+  if (isBabyGame && msg === 'Ведущий завершил игру') {
+    teamChooser.left();
+    cancelAnimationFrame(rafId);
+    if (myStopwatch) { clearInterval(myStopwatch); myStopwatch = null; }
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') { mediaRecorder.onstop = null; mediaRecorder.stop(); }
+    recordedChunks = [];
+    show('joinScreen');
+  }
 });
 
 socket.on('countdown', (seconds) => {
@@ -308,7 +354,7 @@ let myStopwatch = null;
 
 socket.on('battleStarted', () => {
   show('battleScreen');
-  startRecording();
+  if (!isBabyGame) startRecording();
 
   let elapsed = 0;
   document.getElementById('timerPill').textContent = '0:00';
@@ -340,12 +386,17 @@ socket.on('battleStarted', () => {
 socket.on('battleOver', (results) => {
   cancelAnimationFrame(rafId);
   if (myStopwatch) { clearInterval(myStopwatch); myStopwatch = null; }
-  stopRecordingAndSend();
+  if (!isBabyGame) stopRecordingAndSend();
   show('resultsScreen');
   const mine = results.find(r => r.id === socket.id);
   document.getElementById('placeBig').textContent = mine ? mine.place : '-';
   document.getElementById('myPeak').textContent = mine ? `Пик: ${Math.max(0, Math.round(mine.peakScore))} дБ` : '';
   document.getElementById('myDistance').textContent = mine ? `Проехал: ${(mine.totalDistanceKm || 0).toFixed(2)} км` : '';
+  if (isBabyGame) {
+    document.getElementById('babyResultArt').hidden = false;
+    document.getElementById('babyResultArt').innerHTML = NurseryArt.baby(myBabyType, mine && mine.place === 1 ? 'cheer' : 'cry');
+    document.getElementById('myDistance').textContent = mine ? `Малыш прополз ${Math.round(mine.progressPct || 0)}% пути` : '';
+  }
 });
 
 socket.on('backToLobby', () => {
@@ -356,6 +407,26 @@ socket.on('backToLobby', () => {
   }
   recordedChunks = [];
   show('waitScreen');
+});
+
+// Only the new mode uses this disconnect UI. The racing microphone loop is unchanged.
+socket.on('disconnect', () => {
+  teamChooser.left();
+  if (!isBabyGame) return;
+  cancelAnimationFrame(rafId);
+  if (myStopwatch) { clearInterval(myStopwatch); myStopwatch = null; }
+  if (mediaRecorder && mediaRecorder.state !== 'inactive') { mediaRecorder.onstop = null; mediaRecorder.stop(); }
+  recordedChunks = [];
+  const banner = document.getElementById('playerConnection');
+  banner.textContent = 'Связь прервана. Дождись подключения и зайди в комнату заново.';
+  banner.hidden = false;
+});
+socket.on('connect', () => {
+  if (!isBabyGame) return;
+  show('joinScreen');
+  const banner = document.getElementById('playerConnection');
+  banner.textContent = 'Связь восстановлена. Проверь код комнаты у ведущего и подключись заново.';
+  banner.hidden = false;
 });
 </script>
 </body>
