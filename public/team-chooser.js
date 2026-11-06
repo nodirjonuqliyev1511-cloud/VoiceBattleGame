@@ -1,6 +1,8 @@
 // Team selection is separate from microphone sampling and recording.
 window.createTeamChooser = function ({socket}) {
   const $=id=>document.getElementById(id);
+  const raceLogo=$('joinLogo').innerHTML;
+  const raceTitle=document.title;
   let mode=new URLSearchParams(location.search).get('game')==='baby'?'baby':'race';
   let selected=null, available=['boy','girl'], ready=false, joined=false, pending=false, status='lobby';
   const code=()=>$('roomInput').value.trim().toUpperCase();
@@ -18,7 +20,10 @@ window.createTeamChooser = function ({socket}) {
     if(baby){
       $('joinLogo').innerHTML='<span class="cyan">'+PlatformBrand.babyFirstLine+'</span><br><span class="hot" style="font-size:.65em">'+PlatformBrand.babySecondLine+'</span>';
       document.title=PlatformBrand.babyName+' — команды';
-    }else{$('joinLogo').textContent=PlatformBrand.name;document.title=PlatformBrand.name+' — участник';}
+    }else{
+      $('joinLogo').innerHTML=raceLogo;
+      document.title=raceTitle;
+    }
     for(const side of ['boy','girl']){
       const button=$(side==='boy'?'chooseBoy':'chooseGirl');
       const free=available.includes(side);
